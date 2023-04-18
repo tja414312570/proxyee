@@ -7,6 +7,8 @@ import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
 import com.github.monkeywie.proxyee.intercept.common.CertDownIntercept;
 import com.github.monkeywie.proxyee.intercept.common.FullRequestIntercept;
 import com.github.monkeywie.proxyee.intercept.common.FullResponseIntercept;
+import com.github.monkeywie.proxyee.proxy.ProxyConfig;
+import com.github.monkeywie.proxyee.proxy.ProxyType;
 import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import io.netty.buffer.ByteBuf;
@@ -21,6 +23,7 @@ public class InterceptFullHttpProxyServer {
         HttpProxyServerConfig config = new HttpProxyServerConfig();
         config.setHandleSsl(true);
         new HttpProxyServer()
+                .proxyConfig(new ProxyConfig(ProxyType.HTTP,"127.0.0.1",7550))
                 .serverConfig(config)
                 .proxyInterceptInitializer(new HttpProxyInterceptInitializer() {
                     @Override

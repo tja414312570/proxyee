@@ -7,21 +7,23 @@ import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
+import io.netty.handler.codec.http2.*;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.*;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -166,29 +168,89 @@ public class HttpProxyServer {
         });
         return future;
     }
+    @ChannelHandler.Sharable
+    public static class Http2ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+        Http2ServerHandler(){
+            this.isSharable();
+        }
 
+        @Override
+        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+            // 处理HTTP/2请求
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            // 处理异常
+        }
+    }
+
+    public void ccc() throws SSLException {
+        SslContext sslCtx = SslContextBuilder.forClient()
+                .sslProvider(SslProvider.OPENSSL)
+                .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
+                .applicationProtocolConfig(
+                        new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN, ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT, ApplicationProtocolNames.HTTP_2))
+                .build();
+    }
     private ChannelFuture doBind(String ip, int port) {
         init();
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
         workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());
+        Http2FrameCodecBuilder builder = Http2FrameCodecBuilder.forServer()
+                .initialSettings(Http2Settings.defaultSettings())
+                .frameLogger(new Http2FrameLogger(LogLevel.INFO, "Netty HTTP/2 Codec"));
+        Http2FrameCodec frameCodec = builder.build();
+        Http2MultiplexCodecBuilder http2MultiplexCodecBuilder = Http2MultiplexCodecBuilder.forServer(new Http2ServerHandler())
+                .frameLogger(new Http2FrameLogger(LogLevel.INFO, "Netty HTTP/2 Multiplex Codec"));
+        Http2MultiplexCodec multiplexCodec = http2MultiplexCodecBuilder.build();
+//        SslContext sslCtx = SslContextBuilder
+//                .forServer(serverConfig.getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), serverConfig)).build();
+//        ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
+//                getServerConfig().getMaxInitialLineLength(),
+//                getServerConfig().getMaxHeaderSize(),
+//                getServerConfig().getMaxChunkSize()));
+
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
 //                .option(ChannelOption.SO_BACKLOG, 100)
                 .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(new ChannelInitializer<Channel>() {
-
+                .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(Channel ch) throws Exception {
-                        ch.pipeline().addLast("httpCodec", new HttpServerCodec(
-                                serverConfig.getMaxInitialLineLength(),
-                                serverConfig.getMaxHeaderSize(),
-                                serverConfig.getMaxChunkSize()));
-                        ch.pipeline().addLast("serverHandle",
+                    protected void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline pipeline = ch.pipeline();
+////                        SSLEngine sslEngine = ...; // 创建SSL引擎
+//                        SslContext sslCtx = SslContextBuilder
+//                                .forServer(getServerConfig().getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), getServerConfig())).build();
+//                        ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
+//                                getServerConfig().getMaxInitialLineLength(),
+//                                getServerConfig().getMaxHeaderSize(),
+//                                getServerConfig().getMaxChunkSize()));
+//                        ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
+//                        pipeline.addLast("ssl", new SslHandler(sslEngine));
+//                        pipeline.addLast("http2FrameCodec", frameCodec);
+//                        pipeline.addLast("http2MultiplexCodec", multiplexCodec);
+//                        pipeline.addFirst("sslHandle", sslCtx.newHandler(ch.alloc()));
+                        pipeline.addLast("serverHandle",
                                 new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
                                         httpProxyExceptionHandle));
                     }
                 });
+//                .childHandler(new ChannelInitializer<Channel>() {
+//
+//                    @Override
+//                    protected void initChannel(Channel ch) throws Exception {
+//                        ch.pipeline().addLast("httpCodec", new HttpServerCodec(
+//                                serverConfig.getMaxInitialLineLength(),
+//                                serverConfig.getMaxHeaderSize(),
+//                                serverConfig.getMaxChunkSize()));
+//                        ch.pipeline().addLast("serverHandle",
+//                                new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
+//                                        httpProxyExceptionHandle));
+//                    }
+//                });
 
         return ip == null ? bootstrap.bind(port) : bootstrap.bind(ip, port);
     }
