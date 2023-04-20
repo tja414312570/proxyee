@@ -206,13 +206,6 @@ public class HttpProxyServer {
         Http2MultiplexCodecBuilder http2MultiplexCodecBuilder = Http2MultiplexCodecBuilder.forServer(new Http2ServerHandler())
                 .frameLogger(new Http2FrameLogger(LogLevel.INFO, "Netty HTTP/2 Multiplex Codec"));
         Http2MultiplexCodec multiplexCodec = http2MultiplexCodecBuilder.build();
-//        SslContext sslCtx = SslContextBuilder
-//                .forServer(serverConfig.getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), serverConfig)).build();
-//        ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-//                getServerConfig().getMaxInitialLineLength(),
-//                getServerConfig().getMaxHeaderSize(),
-//                getServerConfig().getMaxChunkSize()));
-
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -222,20 +215,10 @@ public class HttpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
-//                        pipeline.addLast(new HttpObjectAggregator(65536)); // 将多个消息转换为 FullHttpRequest 或 FullHttpResponse
-//                        pipeline.addLast(new ReactorNettyHandlerAdapter(handlerAdapter)); // 将请求转发给 WebFlux 处理器
-////                        SSLEngine sslEngine = ...; // 创建SSL引擎
-//                        SslContext sslCtx = SslContextBuilder
-//                                .forServer(getServerConfig().getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), getServerConfig())).build();
-//                        ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-//                                getServerConfig().getMaxInitialLineLength(),
-//                                getServerConfig().getMaxHeaderSize(),
-//                                getServerConfig().getMaxChunkSize()));
-//                        ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
-//                        pipeline.addLast("ssl", new SslHandler(sslEngine));
-//                        pipeline.addLast("http2FrameCodec", frameCodec);
-//                        pipeline.addLast("http2MultiplexCodec", multiplexCodec);
-//                        pipeline.addFirst("sslHandle", sslCtx.newHandler(ch.alloc()));
+                        pipeline.addLast("httpCodec", new HttpServerCodec(
+                                serverConfig.getMaxInitialLineLength(),
+                                serverConfig.getMaxHeaderSize(),
+                                serverConfig.getMaxChunkSize()));
                         pipeline.addLast("serverHandle",
                                 new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
                                         httpProxyExceptionHandle));
