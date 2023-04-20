@@ -2,3 +2,6 @@ spring:
   proxyee:
     host: 127.0.0.1
     port: 9999
+    cert:
+        crt: classpath*:ca.crt
+        pem: classpath*:ca.pem

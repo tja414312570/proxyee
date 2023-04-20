@@ -186,15 +186,6 @@ public class HttpProxyServer {
         }
     }
 
-    public void ccc() throws SSLException {
-        SslContext sslCtx = SslContextBuilder.forClient()
-                .sslProvider(SslProvider.OPENSSL)
-                .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
-                .applicationProtocolConfig(
-                        new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN, ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT, ApplicationProtocolNames.HTTP_2))
-                .build();
-    }
     private ChannelFuture doBind(String ip, int port) {
         init();
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
