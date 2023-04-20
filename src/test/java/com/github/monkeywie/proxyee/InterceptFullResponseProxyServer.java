@@ -35,7 +35,7 @@ public class InterceptFullResponseProxyServer {
                 .proxyInterceptInitializer(new HttpProxyInterceptInitializer() {
                     @Override
                     public void init(HttpProxyInterceptPipeline pipeline) {
-//                        pipeline.addLast(new CertDownIntercept());
+                        pipeline.addLast(new CertDownIntercept());
                         pipeline.addLast(new FullRequestIntercept(){
 
                             @Override

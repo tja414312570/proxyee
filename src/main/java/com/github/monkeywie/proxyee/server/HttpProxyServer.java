@@ -12,6 +12,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http2.*;
@@ -221,6 +222,8 @@ public class HttpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
+                        pipeline.addLast(new HttpObjectAggregator(65536)); // 将多个消息转换为 FullHttpRequest 或 FullHttpResponse
+                        pipeline.addLast(new ReactorNettyHandlerAdapter(handlerAdapter)); // 将请求转发给 WebFlux 处理器
 ////                        SSLEngine sslEngine = ...; // 创建SSL引擎
 //                        SslContext sslCtx = SslContextBuilder
 //                                .forServer(getServerConfig().getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), getServerConfig())).build();

@@ -53,6 +53,13 @@
             <artifactId>bcpkix-jdk15on</artifactId>
             <version>1.60</version>
         </dependency>
+        <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-webflux -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+
     </dependencies>
 
 
