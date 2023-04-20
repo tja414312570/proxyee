@@ -4,6 +4,7 @@ import com.github.monkeywie.proxyee.config.ConfigThreads;
 import com.github.monkeywie.proxyee.config.ProxyEEConfiguration;
 import com.github.monkeywie.proxyee.config.SSLConfiguration;
 import com.github.monkeywie.proxyee.crt.CertUtil;
+import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.server.HttpProxyServer;
@@ -36,65 +37,62 @@ import java.security.cert.X509Certificate;
 @Component
 public class SpringProxyApplicationContext implements ApplicationContextAware {
 
+    private final static InternalLogger log = InternalLoggerFactory.getInstance(HttpProxyServer.class);
     private ApplicationContext applicationContext;
     private HttpProxyServerConfig serverConfig;
-
     @Autowired
     private ProxyEEConfiguration proxyEEConfiguration;
     private NioEventLoopGroup proxyEventLoopGroup;
     private SslContext clientSslContext;
-    private final static InternalLogger log = InternalLoggerFactory.getInstance(HttpProxyServer.class);
+    private HttpProxyInterceptInitializer proxyInterceptInitializer;
+    private HttpProxyExceptionHandle httpProxyExceptionHandle;
 
     @PostConstruct
-    public void init(){
+    public void init() {
         if (serverConfig == null) {
-           serverConfig = new HttpProxyServerConfig();
-       }
+            serverConfig = new HttpProxyServerConfig();
+        }
         ConfigThreads threads = proxyEEConfiguration.getThreads();
         this.proxyEventLoopGroup = new NioEventLoopGroup(threads.getProxy());
-       SslContextBuilder contextBuilder = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE);
-       // 设置ciphers用于改变 client hello 握手协议指纹
+        SslContextBuilder contextBuilder = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE);
+        // 设置ciphers用于改变 client hello 握手协议指纹
         SSLConfiguration ssl = proxyEEConfiguration.getSsl();
         if (ssl.getChicpers() != null) {
-           contextBuilder.ciphers(ssl.getChicpers());
-       }
-       try {
-           this.clientSslContext = contextBuilder.build();
-           if (ssl.isHandleSsl()) {
-               X509Certificate caCert;
-               PrivateKey caPriKey;
-               PathMatchingResourcePatternResolver resources = new PathMatchingResourcePatternResolver();
-               if (caCertFactory == null) {
-                   caCert = CertUtil.loadCert(resources.getResource(ssl.getCaCert()).getInputStream());
-                   caPriKey = CertUtil.loadPriKey(resources.getResource(ssl.getCaKey()).getInputStream());
-               } else {
-                   caCert = caCertFactory.getCACert();
-                   caPriKey = caCertFactory.getCAPriKey();
-               }
-               //读取CA证书使用者信息
-               serverConfig.setIssuer(CertUtil.getSubject(caCert));
-               //读取CA证书有效时段(server证书有效期超出CA证书的，在手机上会提示证书不安全)
-               serverConfig.setCaNotBefore(caCert.getNotBefore());
-               serverConfig.setCaNotAfter(caCert.getNotAfter());
-               //CA私钥用于给动态生成的网站SSL证书签证
-               serverConfig.setCaPriKey(caPriKey);
-               //生产一对随机公私钥用于网站SSL证书动态创建
-               KeyPair keyPair = CertUtil.genKeyPair();
-               serverConfig.setServerPriKey(keyPair.getPrivate());
-               serverConfig.setServerPubKey(keyPair.getPublic());
-           }
-       } catch (Exception e) {
-           serverConfig.setHandleSsl(false);
-           log.warn("SSL init fail,cause:" + e.getMessage());
-       }
-       if (proxyInterceptInitializer == null) {
-           proxyInterceptInitializer = new HttpProxyInterceptInitializer();
-       }
-       if (httpProxyExceptionHandle == null) {
-           httpProxyExceptionHandle = new HttpProxyExceptionHandle();
-       }
-   }
-    
+            contextBuilder.ciphers(ssl.getChicpers());
+        }
+        try {
+            this.clientSslContext = contextBuilder.build();
+            if (ssl.isHandleSsl()) {
+                X509Certificate caCert;
+                PrivateKey caPriKey;
+                PathMatchingResourcePatternResolver resources = new PathMatchingResourcePatternResolver();
+                caCert = CertUtil.loadCert(resources.getResource(ssl.getCaCert()).getInputStream());
+                caPriKey = CertUtil.loadPriKey(resources.getResource(ssl.getCaKey()).getInputStream());
+                CertificateInfo certificateInfo = new CertificateInfo();
+                //读取CA证书使用者信息
+                certificateInfo.setIssuer(CertUtil.getSubject(caCert));
+                //读取CA证书有效时段(server证书有效期超出CA证书的，在手机上会提示证书不安全)
+                certificateInfo.setCaNotBefore(caCert.getNotBefore());
+                certificateInfo.setCaNotAfter(caCert.getNotAfter());
+                //CA私钥用于给动态生成的网站SSL证书签证
+                certificateInfo.setCaPriKey(caPriKey);
+                //生产一对随机公私钥用于网站SSL证书动态创建
+                KeyPair keyPair = CertUtil.genKeyPair();
+                certificateInfo.setServerPriKey(keyPair.getPrivate());
+                certificateInfo.setServerPubKey(keyPair.getPublic());
+            }
+        } catch (Exception e) {
+            serverConfig.setHandleSsl(false);
+            log.warn("SSL init fail,cause:" + e.getMessage());
+        }
+        if (proxyInterceptInitializer == null) {
+            proxyInterceptInitializer = new HttpProxyInterceptInitializer();
+        }
+        if (httpProxyExceptionHandle == null) {
+            httpProxyExceptionHandle = new HttpProxyExceptionHandle();
+        }
+    }
+
     @Bean
     public MyServerHandler myServerHandler() {
         return new MyServerHandler();
@@ -111,7 +109,7 @@ public class SpringProxyApplicationContext implements ApplicationContextAware {
     }
 
     @Bean
-    public ServerBootstrap serverBootstrap(NioEventLoopGroup bossGroup,NioEventLoopGroup workerGroup) {
+    public ServerBootstrap serverBootstrap(NioEventLoopGroup bossGroup, NioEventLoopGroup workerGroup) {
         return new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
