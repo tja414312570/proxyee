@@ -7,7 +7,7 @@
 
   </p>
   <p>
-
+keytool -importcert -alias proxyee -storepass changeit -keystore "D:\Program Files\Java\jdk-17\lib\security\cacerts" -trustcacerts -file ca.pem 
 [English](/README.md) | [中文](/README_zh-CN.md)
 
   </p>
