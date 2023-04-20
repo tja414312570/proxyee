@@ -222,8 +222,8 @@ public class HttpProxyServer {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
-                        pipeline.addLast(new HttpObjectAggregator(65536)); // 将多个消息转换为 FullHttpRequest 或 FullHttpResponse
-                        pipeline.addLast(new ReactorNettyHandlerAdapter(handlerAdapter)); // 将请求转发给 WebFlux 处理器
+//                        pipeline.addLast(new HttpObjectAggregator(65536)); // 将多个消息转换为 FullHttpRequest 或 FullHttpResponse
+//                        pipeline.addLast(new ReactorNettyHandlerAdapter(handlerAdapter)); // 将请求转发给 WebFlux 处理器
 ////                        SSLEngine sslEngine = ...; // 创建SSL引擎
 //                        SslContext sslCtx = SslContextBuilder
 //                                .forServer(getServerConfig().getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), getServerConfig())).build();

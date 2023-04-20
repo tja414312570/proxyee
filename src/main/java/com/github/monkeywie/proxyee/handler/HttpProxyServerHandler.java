@@ -26,6 +26,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
+import reactor.netty.channel.ChannelOperations;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
@@ -125,7 +126,6 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             HttpRequest request = (HttpRequest) msg;
             DecoderResult result = request.decoderResult();
             Throwable cause = result.cause();
-
             if (cause instanceof DecoderException) {
                 setStatus(2);
                 HttpResponseStatus status = null;
@@ -170,7 +170,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                     return;
                 }
                 setStatus(1);
-                if (HttpMethod.CONNECT.name().equalsIgnoreCase(request.method().name())) {// 建立代理握手
+                if (HttpMethod.CONNECT.equals(request.method())) {// 建立代理握手
                     setStatus(2);
                     HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpProxyServer.SUCCESS);
                     ctx.writeAndFlush(response);
@@ -334,6 +334,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             }
             setRequestList(new LinkedList());
             setChannelFuture(bootstrap.connect(pipeRp.getHost(), pipeRp.getPort()));
+            System.err.println(pipeRp.getHost()+"===>"+pipeRp.getPort());
             getChannelFuture().addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
                     future.channel().writeAndFlush(msg);

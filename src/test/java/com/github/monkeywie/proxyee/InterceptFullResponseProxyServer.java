@@ -11,6 +11,7 @@ import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import com.github.monkeywie.proxyee.util.HttpUtil;
 import io.netty.handler.codec.http.*;
+import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.Charset;
 import java.util.LinkedHashSet;
@@ -40,8 +41,8 @@ public class InterceptFullResponseProxyServer {
 
                             @Override
                             public boolean match(HttpRequest httpRequest, HttpProxyInterceptPipeline pipeline) {
-//                                return true;
-                                return httpRequest.uri().toLowerCase().contains("/auth/login");
+                                return true;
+//                                return httpRequest.uri().toLowerCase().contains("chat.openai.com");
                             }
 
                             @Override
@@ -55,13 +56,13 @@ public class InterceptFullResponseProxyServer {
                             @Override
                             public boolean match(HttpRequest httpRequest, HttpResponse httpResponse, HttpProxyInterceptPipeline pipeline) {
                                 //在匹配到百度首页时插入js
-//                                return true;
-                                return httpRequest.uri().toLowerCase().contains("/auth/login");
+                                return true;
+//                                return httpRequest.uri().toLowerCase().contains("chat.openai.com");
                             }
 
                             @Override
                             public void handleResponse(HttpRequest httpRequest, FullHttpResponse httpResponse, HttpProxyInterceptPipeline pipeline) {
-                                System.err.println("========================响应");
+                                System.err.println("========================响应"+httpResponse.status());
                                 System.err.println(httpRequest.toString());
                                 //打印原始响应信息
                                 System.out.println(httpResponse.toString());
@@ -69,11 +70,17 @@ public class InterceptFullResponseProxyServer {
                                 //修改响应头和响应体
                                 HttpHeaders headers = httpResponse.headers();
                                 Set<String> names = headers.names();
-                                names.forEach(item->{
-                                    String value = headers.get(item);
-                                    headers.remove(item);
-                                    headers.set(item.toLowerCase(),value);
-                                });
+//                                String s = headers.get("Set-Cookie");
+//                                if(StringUtils.isNotEmpty(s)){
+//                                    headers.set("set-cookie",s);
+//                                    headers.remove("Set-Cookie");
+//                                }
+//                                names.forEach(item->{
+//                                    System.err.println(item+"===>"+headers.get(item));
+////                                    String value = headers.get(item);
+////                                    headers.remove(item);
+////                                    headers.set(item.toLowerCase(),value);
+//                                });
                                 headers.set("handel", "edit head");
 //                    /*int index = ByteUtil.findText(httpResponse.content(), "<head>");
 //                    ByteUtil.insertText(httpResponse.content(), index, "<script>alert(1)</script>");*/
