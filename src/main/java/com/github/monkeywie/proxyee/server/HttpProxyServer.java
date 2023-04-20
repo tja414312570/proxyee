@@ -186,6 +186,7 @@ public class HttpProxyServer {
         }
     }
 
+
     private ChannelFuture doBind(String ip, int port) {
         init();
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
