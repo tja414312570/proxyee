@@ -1,7 +1,6 @@
 package com.github.monkeywie.proxyee.crt;
 
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
-import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 
 import java.security.cert.X509Certificate;
 import java.util.HashMap;

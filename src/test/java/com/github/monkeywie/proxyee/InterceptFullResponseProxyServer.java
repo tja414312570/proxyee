@@ -7,11 +7,8 @@ import com.github.monkeywie.proxyee.intercept.common.FullRequestIntercept;
 import com.github.monkeywie.proxyee.intercept.common.FullResponseIntercept;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import com.github.monkeywie.proxyee.proxy.ProxyType;
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
-import com.github.monkeywie.proxyee.util.HttpUtil;
 import io.netty.handler.codec.http.*;
-import org.apache.commons.lang3.StringUtils;
 
 import java.nio.charset.Charset;
 import java.util.LinkedHashSet;

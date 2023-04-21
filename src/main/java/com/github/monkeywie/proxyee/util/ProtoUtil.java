@@ -3,7 +3,6 @@ package com.github.monkeywie.proxyee.util;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpRequest;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.net.MalformedURLException;

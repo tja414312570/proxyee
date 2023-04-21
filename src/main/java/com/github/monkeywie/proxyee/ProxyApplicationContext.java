@@ -1,14 +1,18 @@
-package com.github.monkeywie.proxyee.server;
+package com.github.monkeywie.proxyee;
 
 import com.github.monkeywie.proxyee.crt.CertPool;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
+import com.github.monkeywie.proxyee.handler.HttpProxyClientHandler;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
+import com.github.monkeywie.proxyee.server.HttpProxyChannelInitializer;
+import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import com.github.monkeywie.proxyee.server.accept.HttpProxyAcceptHandler;
 import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
+import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -33,10 +37,9 @@ import java.net.SocketAddress;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @Slf4j
 @Data
@@ -48,14 +51,17 @@ public class ProxyApplicationContext{
     protected HttpProxyExceptionHandle httpProxyExceptionHandle;
     protected CertificateInfo certificateInfo;
     protected HttpProxyAuthenticationProvider authenticationProvider;
-    protected ProxyHandler proxyHandler;
+    protected Supplier<ProxyHandler> proxyHandler;
     protected NioEventLoopGroup workerGroup;
     protected HttpProxyAcceptHandler httpProxyAcceptHandler;
-    protected Map<String,ChannelHandler> channelHandlers = new LinkedHashMap<>();
     private String host;
     private int port;
     private AddressResolverGroup<? extends SocketAddress> resolver;
     private boolean handleSsl;
+
+    protected Consumer<Channel> serverChannelInitializer;
+
+    protected HttpProxyChannelInitializer proxyChannelInitializer;
 
     public void init(HttpProxyServerConfig serverConfig) {
         try {
@@ -67,7 +73,7 @@ public class ProxyApplicationContext{
                 String username = proxyConfig.getUsername();
                 String password = proxyConfig.getPassword();
                 boolean isAuth = username!= null && password != null;
-                proxyHandler =  switch (proxyConfig.getProxyType()) {
+                proxyHandler =  ()-> switch (proxyConfig.getProxyType()) {
                     case SOCKS4-> new Socks4ProxyHandler(inetSocketAddress);
                     case SOCKS5-> isAuth ? new Socks5ProxyHandler(inetSocketAddress,
                             username,password): new Socks5ProxyHandler(inetSocketAddress);
@@ -95,13 +101,27 @@ public class ProxyApplicationContext{
                 certificateInfo.setServerPriKey(keyPair.getPrivate());
                 certificateInfo.setServerPubKey(keyPair.getPublic());
             }
-            this.channelHandlers.put("httpCodec", new HttpServerCodec(
-                    serverConfig.getMaxInitialLineLength(),
-                    serverConfig.getMaxHeaderSize(),
-                    serverConfig.getMaxChunkSize()));
-
-            this.channelHandlers.put("serverHandle",
-                    new HttpProxyServerHandler(this));
+            this.serverChannelInitializer = ch->{
+                ch.pipeline().addLast("httpCodec",new HttpServerCodec(
+                        serverConfig.getMaxInitialLineLength(),
+                        serverConfig.getMaxHeaderSize(),
+                        serverConfig.getMaxChunkSize()));
+                ch.pipeline().addLast("serverHandle",new HttpProxyServerHandler(this));
+            };
+            this.proxyChannelInitializer = (ch,proxy)->{
+                if (proxyHandler != null) {
+                    ch.pipeline().addLast(proxyHandler.get());
+                }
+                ProtoUtil.RequestProto requestProto = proxy.getRequestProto();
+                if (requestProto.getSsl()) {
+                    ch.pipeline().addLast(this.clientSslContext.newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
+                }
+                ch.pipeline().addLast("httpCodec",new HttpServerCodec(
+                        serverConfig.getMaxInitialLineLength(),
+                        serverConfig.getMaxHeaderSize(),
+                        serverConfig.getMaxChunkSize()) );
+                ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(proxy.getClientChannel(), this));
+            };
             this.bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
             this.workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());
             if (proxyInterceptInitializer == null) {
@@ -132,24 +152,25 @@ public class ProxyApplicationContext{
         start(null, port);
     }
 
-    public void start(String ip, int port) {
+    public ChannelFuture start(String ip, int port) {
+        this.host = ip;
+        this.port = port;
+        ChannelFuture channelFuture = doBind();
+        CountDownLatch latch = new CountDownLatch(1);
+        channelFuture.addListener(future -> {
+            if (future.cause() != null) {
+                httpProxyExceptionHandle.startCatch(future.cause());
+            }
+            latch.countDown();
+        });
         try {
-            this.host = ip;
-            this.port = port;
-            ChannelFuture channelFuture = doBind();
-            channelFuture.addListener(future -> {
-                if (future.cause() != null) {
-                    httpProxyExceptionHandle.startCatch(future.cause());
-                }
-            });
-            channelFuture.channel().closeFuture().sync();
-        } catch (Exception e) {
-            httpProxyExceptionHandle.startCatch(e);
-        } finally {
-            close();
+            latch.await();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
+        return channelFuture;
     }
-
+//
 
 //    public CompletionStage<Void> startAsync(String ip, int port) {
 //        this.host = ip;
@@ -191,9 +212,8 @@ public class ProxyApplicationContext{
                 .handler(new LoggingHandler(LogLevel.DEBUG))
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
-                    protected void initChannel(SocketChannel ch) throws Exception {
-                        ChannelPipeline pipeline = ch.pipeline();
-                        channelHandlers.forEach(pipeline::addLast);
+                    protected void initChannel(SocketChannel ch) {
+                        serverChannelInitializer.accept(ch);
                     }
                 });
         return this.host == null ? bootstrap.bind(port) : bootstrap.bind(this.host, port);

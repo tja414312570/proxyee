@@ -1,41 +1,32 @@
 package com.github.monkeywie.proxyee.handler;
 
-import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
+import com.github.monkeywie.proxyee.ProxyApplicationContext;
 import com.github.monkeywie.proxyee.util.ProtoUtil.RequestProto;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
-import io.netty.handler.codec.http.HttpClientCodec;
-import io.netty.handler.proxy.ProxyHandler;
+import lombok.Getter;
 
 /**
  * HTTP代理，转发解码后的HTTP报文
  */
+@Getter
 public class HttpProxyInitializer extends ChannelInitializer {
 
     private Channel clientChannel;
     private RequestProto requestProto;
-    private ProxyHandler proxyHandler;
+    private ProxyApplicationContext context;
 
     public HttpProxyInitializer(Channel clientChannel, RequestProto requestProto,
-                                ProxyHandler proxyHandler) {
+                                ProxyApplicationContext context) {
         this.clientChannel = clientChannel;
         this.requestProto = requestProto;
-        this.proxyHandler = proxyHandler;
+        this.context = context;
     }
 
     @Override
     protected void initChannel(Channel ch) throws Exception {
-        if (proxyHandler != null) {
-            ch.pipeline().addLast(proxyHandler);
-        }
-        HttpProxyServerConfig serverConfig = ((HttpProxyServerHandler) clientChannel.pipeline().get("serverHandle")).getServerConfig();
-        if (requestProto.getSsl()) {
-            ch.pipeline().addLast(serverConfig.getClientSslCtx().newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
-        }
-        ch.pipeline().addLast("httpCodec", new HttpClientCodec(
-                serverConfig.getMaxInitialLineLength(),
-                serverConfig.getMaxHeaderSize(),
-                serverConfig.getMaxChunkSize()));
-        ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(clientChannel));
+        this.context.getProxyChannelInitializer()
+                .accept(ch,this);
+
     }
 }

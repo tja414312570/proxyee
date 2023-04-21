@@ -1,37 +1,27 @@
 package com.github.monkeywie.proxyee;
 
-import com.github.monkeywie.proxyee.config.ConfigThreads;
-import com.github.monkeywie.proxyee.config.ProxyEEConfiguration;
-import com.github.monkeywie.proxyee.config.SSLConfiguration;
-import com.github.monkeywie.proxyee.config.UpstreamConfiguration;
+import com.github.monkeywie.proxyee.config.*;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
+import com.github.monkeywie.proxyee.handler.HttpProxyClientHandler;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
-import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
-import com.github.monkeywie.proxyee.server.ProxyApplicationContext;
-import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
+import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.proxy.HttpProxyHandler;
 import io.netty.handler.proxy.Socks4ProxyHandler;
 import io.netty.handler.proxy.Socks5ProxyHandler;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
-import jakarta.annotation.PostConstruct;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.context.Lifecycle;
-import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
@@ -43,15 +33,16 @@ import java.security.cert.X509Certificate;
 
 @Component
 @Slf4j
-public class SpringProxyApplicationContext extends ProxyApplicationContext implements ApplicationContextAware, Lifecycle {
-
-    private ApplicationContext applicationContext;
+@Getter
+public class SpringProxyApplicationContext extends ProxyApplicationContext implements ApplicationContextAware{
+    protected ApplicationContext applicationContext;
     @Autowired
-    private ProxyEEConfiguration proxyEEConfiguration;
-    private int port;
-    private String host;
+    protected ProxyEEConfiguration proxyEEConfiguration;
+    protected int port;
+    protected String host;
 
-    @PostConstruct
+    protected boolean running;
+
     public void init() {
         log.info("初始化proxyee上下文");
         long now = System.currentTimeMillis();
@@ -96,6 +87,29 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
         } catch (Exception e) {
             log.error("SSL init fail,cause:" + e.getMessage(),e);
         }
+        CodecConfiguration codec = proxyEEConfiguration.getCodec();
+        //服务渠道初始化工具
+        this.serverChannelInitializer = ch -> {
+            ch.pipeline().addLast("httpCodec", new HttpServerCodec(
+                    codec.getMaxInitialLineLength(),
+                    codec.getMaxHeaderSize(),
+                    codec.getMaxChunkSize()));
+            ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(this));
+        };
+        this.proxyChannelInitializer = (ch,proxy)->{
+            if (proxyHandler != null) {
+                ch.pipeline().addLast(proxyHandler.get());
+            }
+            ProtoUtil.RequestProto requestProto = proxy.getRequestProto();
+            if (requestProto.getSsl()) {
+                ch.pipeline().addLast(this.clientSslContext.newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
+            }
+            ch.pipeline().addLast("httpCodec",new HttpServerCodec(
+                    codec.getMaxInitialLineLength(),
+                    codec.getMaxHeaderSize(),
+                    codec.getMaxChunkSize()));
+            ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(proxy.getClientChannel(), this));
+        };
         if (proxyInterceptInitializer == null) {
             proxyInterceptInitializer = new HttpProxyInterceptInitializer();
         }
@@ -108,7 +122,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
             InetSocketAddress inetSocketAddress = new InetSocketAddress(upstream.getHost(),
                     upstream.getPort());
             boolean isAuth = upstream.getUsername()!= null && upstream.getPassword() != null;
-            proxyHandler =  switch (StringUtils.lowerCase(upstream.getType())) {
+            proxyHandler =  ()-> switch (StringUtils.lowerCase(upstream.getType())) {
                 case "socket4"-> new Socks4ProxyHandler(inetSocketAddress);
                 case "socket5"-> isAuth ? new Socks5ProxyHandler(inetSocketAddress,
                                 upstream.getUsername(), upstream.getPassword()): new Socks5ProxyHandler(inetSocketAddress);
@@ -119,62 +133,8 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
         log.info("初始化proxyee耗时:{}ms",System.currentTimeMillis()-now);
     }
 
-    @Bean
-    public MyServerHandler myServerHandler() {
-        return new MyServerHandler();
-    }
-
-    @Bean
-    public NioEventLoopGroup bossGroup() {
-        return new NioEventLoopGroup();
-    }
-
-    @Bean
-    public NioEventLoopGroup workerGroup() {
-        return new NioEventLoopGroup();
-    }
-
-    @Bean
-    public ServerBootstrap serverBootstrap(NioEventLoopGroup bossGroup, NioEventLoopGroup workerGroup) {
-        return new ServerBootstrap()
-                .group(bossGroup, workerGroup)
-                .channel(NioServerSocketChannel.class)
-                .childHandler(new ChannelInitializer<NioServerSocketChannel>() {
-                    @Override
-                    protected void initChannel(NioServerSocketChannel ch) throws Exception {
-                        ChannelPipeline pipeline = ch.pipeline();
-                        HttpProxyServerConfig serverConfig = null;
-                        pipeline.addLast("httpCodec", new HttpServerCodec(
-                                serverConfig.getMaxInitialLineLength(),
-                                serverConfig.getMaxHeaderSize(),
-                                serverConfig.getMaxChunkSize()));
-                        pipeline.addLast("serverHandle",
-                                new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyHandler,
-                                        httpProxyExceptionHandle));;
-                    }
-                })
-                .option(ChannelOption.SO_BACKLOG, 128)
-                .childOption(ChannelOption.SO_KEEPALIVE, true);
-    }
-
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         this.applicationContext = applicationContext;
-    }
-
-    @Override
-    public void start() {
-        this.init();
-        super.start(this.host,this.port);
-    }
-
-    @Override
-    public void stop() {
-        super.close();
-    }
-
-    @Override
-    public boolean isRunning() {
-        return false;
     }
 }

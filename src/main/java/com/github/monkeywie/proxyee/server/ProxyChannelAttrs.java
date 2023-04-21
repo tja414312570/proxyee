@@ -1,8 +1,8 @@
 package com.github.monkeywie.proxyee.server;
 
+import com.github.monkeywie.proxyee.handler.HttpProxyInitializer;
 import io.netty.util.AttributeKey;
-import reactor.netty.Connection;
 
 public interface ProxyChannelAttrs {
-    static final AttributeKey<Connection> PROXY = AttributeKey.valueOf("$CONNECTION");
+    static final AttributeKey<HttpProxyInitializer> HTTP_PROXY = AttributeKey.valueOf("$HttpProxyInitializer");
 }

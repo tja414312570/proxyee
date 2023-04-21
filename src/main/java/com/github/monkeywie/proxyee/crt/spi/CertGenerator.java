@@ -1,6 +1,8 @@
 package com.github.monkeywie.proxyee.crt.spi;
 
-import java.security.*;
+import java.security.KeyPair;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.util.Date;
 

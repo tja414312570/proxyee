@@ -3,7 +3,6 @@ package com.github.monkeywie.proxyee;
 import com.github.monkeywie.proxyee.intercept.HttpProxyIntercept;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import com.github.monkeywie.proxyee.server.auth.BasicHttpProxyAuthenticationProvider;
 import com.github.monkeywie.proxyee.server.auth.HttpAuthContext;

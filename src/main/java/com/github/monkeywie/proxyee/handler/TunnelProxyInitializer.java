@@ -1,30 +1,30 @@
 package com.github.monkeywie.proxyee.handler;
 
+import com.github.monkeywie.proxyee.ProxyApplicationContext;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
-import io.netty.handler.proxy.ProxyHandler;
 
 /**
  * http代理隧道，转发原始报文
  */
 public class TunnelProxyInitializer extends ChannelInitializer {
 
+    private final ProxyApplicationContext context;
     private Channel clientChannel;
-    private ProxyHandler proxyHandler;
 
-    public TunnelProxyInitializer(Channel clientChannel,
-                                  ProxyHandler proxyHandler) {
+    public TunnelProxyInitializer(Channel clientChannel
+            , ProxyApplicationContext context) {
         this.clientChannel = clientChannel;
-        this.proxyHandler = proxyHandler;
+        this.context = context;
     }
 
     @Override
     protected void initChannel(Channel ch) throws Exception {
-        if (proxyHandler != null) {
-            ch.pipeline().addLast(proxyHandler);
+        if (context.getProxyHandler() != null) {
+            ch.pipeline().addLast(context.getProxyHandler().get());
         }
         ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
             @Override
@@ -42,8 +42,7 @@ public class TunnelProxyInitializer extends ChannelInitializer {
             public void exceptionCaught(ChannelHandlerContext ctx0, Throwable cause) throws Exception {
                 ctx0.channel().close();
                 clientChannel.close();
-                HttpProxyExceptionHandle exceptionHandle = ((HttpProxyServerHandler) clientChannel.pipeline()
-                        .get("serverHandle")).getExceptionHandle();
+                HttpProxyExceptionHandle exceptionHandle =context.getHttpProxyExceptionHandle();
                 exceptionHandle.afterCatch(clientChannel, ctx0.channel(), cause);
             }
         });

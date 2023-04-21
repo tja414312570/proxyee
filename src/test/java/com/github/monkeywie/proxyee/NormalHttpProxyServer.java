@@ -1,7 +1,6 @@
 package com.github.monkeywie.proxyee;
 
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import io.netty.channel.Channel;
 
 public class NormalHttpProxyServer {

@@ -18,5 +18,7 @@ public class ProxyEEConfiguration {
     private AuthConfiguration auth;
     @NestedConfigurationProperty
     private UpstreamConfiguration upstream;
+    @NestedConfigurationProperty
+    private CodecConfiguration codec = new CodecConfiguration();
 
 }

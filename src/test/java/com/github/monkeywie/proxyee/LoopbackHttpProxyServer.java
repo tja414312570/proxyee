@@ -1,6 +1,5 @@
 package com.github.monkeywie.proxyee;
 
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import io.netty.resolver.AddressResolver;
 import io.netty.resolver.AddressResolverGroup;

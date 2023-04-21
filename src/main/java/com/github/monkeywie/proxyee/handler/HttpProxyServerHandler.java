@@ -1,13 +1,10 @@
 package com.github.monkeywie.proxyee.handler;
 
+import com.github.monkeywie.proxyee.ProxyApplicationContext;
+import com.github.monkeywie.proxyee.consts.HttpsResponse;
 import com.github.monkeywie.proxyee.crt.CertPool;
-import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.intercept.HttpProxyIntercept;
-import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
-import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
-import com.github.monkeywie.proxyee.server.ProxyApplicationContext;
 import com.github.monkeywie.proxyee.server.accept.HttpProxyAcceptHandler;
 import com.github.monkeywie.proxyee.server.auth.HttpAuthContext;
 import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
@@ -21,7 +18,6 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
-import io.netty.handler.proxy.ProxyHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.resolver.NoopAddressResolverGroup;
@@ -43,7 +39,6 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
     private boolean isConnect;
 
     private byte[] httpTagBuf;
-    private HttpProxyAuthenticationProvider authenticationProvider;
 
     protected ChannelFuture getChannelFuture() {
         return cf;
@@ -102,6 +97,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
+        System.err.println(msg.getClass());
         if (msg instanceof HttpRequest) {
             HttpRequest request = (HttpRequest) msg;
             DecoderResult result = request.decoderResult();
@@ -153,7 +149,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 setStatus(1);
                 if (HttpMethod.CONNECT.equals(request.method())) {// 建立代理握手
                     setStatus(2);
-                    HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpProxyServer.SUCCESS);
+                    HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpsResponse.SUCCESS);
                     ctx.writeAndFlush(response);
                     ctx.channel().pipeline().remove("httpCodec");
                     // fix issue #42
@@ -185,10 +181,10 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 SslContext sslCtx = SslContextBuilder
                         .forServer(this.context.getCertificateInfo().getServerPriKey(),
                                 CertPool.getCert(port, getRequestProto().getHost(), this.context.getCertificateInfo())).build();
-                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-                        getServerConfig().getMaxInitialLineLength(),
-                        getServerConfig().getMaxHeaderSize(),
-                        getServerConfig().getMaxChunkSize()));
+//                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
+//                        getServerConfig().getMaxInitialLineLength(),
+//                        getServerConfig().getMaxHeaderSize(),
+//                        getServerConfig().getMaxChunkSize()));
                 ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
                 // 重新过一遍pipeline，拿到解密后的的http报文
                 ctx.pipeline().fireChannelRead(msg);
@@ -211,10 +207,10 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
             // 如果connect后面跑的是HTTP报文，也可以抓包处理
             if (isHttp(byteBuf)) {
-                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-                        getServerConfig().getMaxInitialLineLength(),
-                        getServerConfig().getMaxHeaderSize(),
-                        getServerConfig().getMaxChunkSize()));
+//                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
+//                        getServerConfig().getMaxInitialLineLength(),
+//                        getServerConfig().getMaxHeaderSize(),
+//                        getServerConfig().getMaxChunkSize()));
                 ctx.pipeline().fireChannelRead(msg);
                 return;
             }
@@ -237,8 +233,8 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             getChannelFuture().channel().close();
         }
         ctx.channel().close();
-        if (getServerConfig().getHttpProxyAcceptHandler() != null) {
-            getServerConfig().getHttpProxyAcceptHandler().onClose(ctx.channel());
+        if (this.context.getHttpProxyAcceptHandler() != null) {
+            this.context.getHttpProxyAcceptHandler().onClose(ctx.channel());
         }
     }
 
@@ -262,7 +258,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
             HttpToken httpToken = authProvider.authenticate(request);
             if (httpToken == null) {
-                HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpProxyServer.UNAUTHORIZED);
+                HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpsResponse.UNAUTHORIZED);
                 response.headers().set(HttpHeaderNames.PROXY_AUTHENTICATE, authProvider.authType() + " realm=\"" + authProvider.authRealm() + "\"");
                 ctx.writeAndFlush(response);
                 return false;
@@ -298,8 +294,8 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
              * hello不带SNI扩展时会直接返回Received fatal alert: handshake_failure(握手错误)
              * 例如：https://cdn.mdn.mozilla.net/static/img/favicon32.7f3da72dcea1.png
              */
-            ChannelInitializer channelInitializer = isHttp ? new HttpProxyInitializer(channel, pipeRp, this.context.getProxyHandler())
-                    : new TunnelProxyInitializer(channel, this.context.getProxyHandler());
+            ChannelInitializer channelInitializer = isHttp ? new HttpProxyInitializer(channel, pipeRp, this.context)
+                    : new TunnelProxyInitializer(channel, this.context);
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(this.context.getProxyGroup()) // 注册线程池
                     .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类

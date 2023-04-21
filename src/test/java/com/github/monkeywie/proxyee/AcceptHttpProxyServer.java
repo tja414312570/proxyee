@@ -1,6 +1,5 @@
 package com.github.monkeywie.proxyee;
 
-import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 import com.github.monkeywie.proxyee.server.accept.HttpProxyAcceptHandler;
 import io.netty.channel.Channel;
