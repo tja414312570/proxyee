@@ -1,5 +1,6 @@
 package com.github.monkeywie.proxyee.crt;
 
+import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
 
 import java.security.cert.X509Certificate;
@@ -11,7 +12,7 @@ public class CertPool {
 
     private static Map<Integer, Map<String, X509Certificate>> certCache = new WeakHashMap<>();
 
-    public static X509Certificate getCert(Integer port, String host, HttpProxyServerConfig serverConfig)
+    public static X509Certificate getCert(Integer port, String host, CertificateInfo certificateInfo)
             throws Exception {
         X509Certificate cert = null;
         if (host != null) {
@@ -24,9 +25,9 @@ public class CertPool {
             if (portCertCache.containsKey(key)) {
                 return portCertCache.get(key);
             } else {
-                cert = CertUtil.genCert(serverConfig.getIssuer(), serverConfig.getCaPriKey(),
-                        serverConfig.getCaNotBefore(), serverConfig.getCaNotAfter(),
-                        serverConfig.getServerPubKey(), key);
+                cert = CertUtil.genCert(certificateInfo.getIssuer(), certificateInfo.getCaPriKey(),
+                        certificateInfo.getCaNotBefore(), certificateInfo.getCaNotAfter(),
+                        certificateInfo.getServerPubKey(), key);
                 portCertCache.put(key, cert);
             }
         }

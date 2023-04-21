@@ -29,6 +29,6 @@ public class ProxyConfig implements Serializable {
         this.host = host;
         this.port = port;
         this.username = user;
-        this.pawssord = pwd;
+        this.password = pwd;
     }
 }

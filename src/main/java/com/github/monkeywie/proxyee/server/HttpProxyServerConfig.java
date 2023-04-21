@@ -24,19 +24,17 @@ public class HttpProxyServerConfig {
 
     private ProxyConfig proxyConfig;
     private HttpProxyAcceptHandler httpProxyAcceptHandler;
-    private HttpProxyAuthenticationProvider authenticationProvider;
-    private final AddressResolverGroup<? extends SocketAddress> resolver;
+
+
     private Iterable<String> ciphers;
     private int maxInitialLineLength = HttpObjectDecoder.DEFAULT_MAX_INITIAL_LINE_LENGTH;
     private int maxHeaderSize = HttpObjectDecoder.DEFAULT_MAX_HEADER_SIZE;
     private int maxChunkSize = HttpObjectDecoder.DEFAULT_MAX_CHUNK_SIZE;
 
     public HttpProxyServerConfig() {
-        this(DefaultAddressResolverGroup.INSTANCE);
     }
 
     public HttpProxyServerConfig(final AddressResolverGroup<? extends SocketAddress> resolver) {
-        this.resolver = resolver;
     }
 
     private HttpProxyServerConfig(Builder builder) {
@@ -45,7 +43,6 @@ public class HttpProxyServerConfig {
         this.proxyGroupThreads = builder.proxyGroupThreads;
         this.handleSsl = builder.handleSsl;
         this.httpProxyAcceptHandler = builder.httpProxyAcceptHandler;
-        this.resolver = builder.resolver;
         this.maxInitialLineLength = builder.maxInitialLineLength;
         this.maxHeaderSize = builder.maxHeaderSize;
         this.maxChunkSize = builder.maxChunkSize;

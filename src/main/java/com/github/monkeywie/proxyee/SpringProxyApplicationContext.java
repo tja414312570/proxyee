@@ -48,10 +48,15 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
     private ApplicationContext applicationContext;
     @Autowired
     private ProxyEEConfiguration proxyEEConfiguration;
+    private int port;
+    private String host;
+
     @PostConstruct
     public void init() {
         log.info("初始化proxyee上下文");
         long now = System.currentTimeMillis();
+        this.host = proxyEEConfiguration.getHost();
+        this.port = proxyEEConfiguration.getPort();
         ConfigThreads threads = proxyEEConfiguration.getThreads();
         this.proxyGroup = new NioEventLoopGroup(threads.getProxy());
         this.bossGroup = new NioEventLoopGroup(threads.getBoss());
@@ -160,7 +165,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
     @Override
     public void start() {
         this.init();
-        super.start();
+        super.start(this.host,this.port);
     }
 
     @Override
