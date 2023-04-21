@@ -11,8 +11,10 @@ import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
 import com.github.monkeywie.proxyee.server.auth.model.HttpToken;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import com.github.monkeywie.proxyee.util.ProtoUtil.RequestProto;
+import com.google.gson.Gson;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.*;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DecoderException;
@@ -47,8 +49,6 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
     protected void setChannelFuture(ChannelFuture cf) {
         this.cf = cf;
     }
-
-
 
     protected boolean getIsConnect() {
         return isConnect;
@@ -97,7 +97,9 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        System.err.println(msg.getClass());
+//        System.err.println("\n-==========");
+        System.err.println(msg.getClass()+"\n");
+//        System.err.println(msg);
         if (msg instanceof HttpRequest) {
             HttpRequest request = (HttpRequest) msg;
             DecoderResult result = request.decoderResult();
@@ -175,16 +177,13 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             }
         } else { // ssl和websocket的握手处理
             ByteBuf byteBuf = (ByteBuf) msg;
+//            System.err.println(new Gson().toJson(ByteBufUtil.getBytes(byteBuf)));
             if (this.context.isHandleSsl() && byteBuf.getByte(0) == 22) {// ssl握手
                 getRequestProto().setSsl(true);
                 int port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
                 SslContext sslCtx = SslContextBuilder
                         .forServer(this.context.getCertificateInfo().getServerPriKey(),
                                 CertPool.getCert(port, getRequestProto().getHost(), this.context.getCertificateInfo())).build();
-//                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-//                        getServerConfig().getMaxInitialLineLength(),
-//                        getServerConfig().getMaxHeaderSize(),
-//                        getServerConfig().getMaxChunkSize()));
                 ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
                 // 重新过一遍pipeline，拿到解密后的的http报文
                 ctx.pipeline().fireChannelRead(msg);
@@ -214,6 +213,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 ctx.pipeline().fireChannelRead(msg);
                 return;
             }
+            System.err.println("转发数据"+msg+"===>"+ctx.channel());
             handleProxyData(ctx.channel(), msg, false);
         }
     }
@@ -285,6 +285,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         if (isChangeRp || getChannelFuture() == null) {
             // connection异常 还有HttpContent进来，不转发
             if (isHttp && !(msg instanceof HttpRequest)) {
+                System.err.println("忽略:"+msg);
                 return;
             }
             getInterceptPipeline().beforeConnect(channel);

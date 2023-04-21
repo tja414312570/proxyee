@@ -4,7 +4,8 @@ import com.github.monkeywie.proxyee.config.*;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
-import com.github.monkeywie.proxyee.handler.HttpProxyClientHandler;
+import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
+import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
@@ -96,7 +97,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
                     codec.getMaxChunkSize()));
             ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(this));
         };
-        this.proxyChannelInitializer = (ch,proxy)->{
+        this.httpProxyChannelInitializer = (ch,proxy)->{
             if (proxyHandler != null) {
                 ch.pipeline().addLast(proxyHandler.get());
             }
@@ -107,8 +108,14 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
             ch.pipeline().addLast("httpCodec",new HttpServerCodec(
                     codec.getMaxInitialLineLength(),
                     codec.getMaxHeaderSize(),
-                    codec.getMaxChunkSize()));
-            ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(proxy.getClientChannel(), this));
+                    codec.getMaxChunkSize()) );
+            ch.pipeline().addLast("proxyClientHandle", new ChannelHttpMsgForwardAdapter(proxy.getClientChannel(), this));
+        };
+        this.tunnelProxyChannelInitializer = (ch,proxy)->{
+            if (proxyHandler != null) {
+                ch.pipeline().addLast(proxyHandler.get());
+            }
+            ch.pipeline().addLast(new ChannelTunnelMsgForwardAdapter(proxy.getClientChannel(), this));
         };
         if (proxyInterceptInitializer == null) {
             proxyInterceptInitializer = new HttpProxyInterceptInitializer();

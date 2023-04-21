@@ -4,12 +4,14 @@ import com.github.monkeywie.proxyee.crt.CertPool;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
-import com.github.monkeywie.proxyee.handler.HttpProxyClientHandler;
+import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
+import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import com.github.monkeywie.proxyee.server.HttpProxyChannelInitializer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
+import com.github.monkeywie.proxyee.server.TunnelProxyChannelInitializer;
 import com.github.monkeywie.proxyee.server.accept.HttpProxyAcceptHandler;
 import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
@@ -61,7 +63,9 @@ public class ProxyApplicationContext{
 
     protected Consumer<Channel> serverChannelInitializer;
 
-    protected HttpProxyChannelInitializer proxyChannelInitializer;
+    protected HttpProxyChannelInitializer httpProxyChannelInitializer;
+
+    protected TunnelProxyChannelInitializer tunnelProxyChannelInitializer;
 
     public void init(HttpProxyServerConfig serverConfig) {
         try {
@@ -108,7 +112,7 @@ public class ProxyApplicationContext{
                         serverConfig.getMaxChunkSize()));
                 ch.pipeline().addLast("serverHandle",new HttpProxyServerHandler(this));
             };
-            this.proxyChannelInitializer = (ch,proxy)->{
+            this.httpProxyChannelInitializer = (ch,proxy)->{
                 if (proxyHandler != null) {
                     ch.pipeline().addLast(proxyHandler.get());
                 }
@@ -120,7 +124,13 @@ public class ProxyApplicationContext{
                         serverConfig.getMaxInitialLineLength(),
                         serverConfig.getMaxHeaderSize(),
                         serverConfig.getMaxChunkSize()) );
-                ch.pipeline().addLast("proxyClientHandle", new HttpProxyClientHandler(proxy.getClientChannel(), this));
+                ch.pipeline().addLast("httpMsgForward", new ChannelHttpMsgForwardAdapter(proxy.getClientChannel(), this));
+            };
+            this.tunnelProxyChannelInitializer = (ch,proxy)->{
+                if (proxyHandler != null) {
+                    ch.pipeline().addLast(proxyHandler.get());
+                }
+                ch.pipeline().addLast("tunnelMsgForward",new ChannelTunnelMsgForwardAdapter(proxy.getClientChannel(), this));
             };
             this.bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
             this.workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());
@@ -134,19 +144,6 @@ public class ProxyApplicationContext{
             throw new RuntimeException("init context failed",e);
         }
     }
-
-    public ProxyApplicationContext proxyInterceptInitializer(
-            HttpProxyInterceptInitializer proxyInterceptInitializer) {
-        this.proxyInterceptInitializer = proxyInterceptInitializer;
-        return this;
-    }
-
-    public ProxyApplicationContext httpProxyExceptionHandle(
-            HttpProxyExceptionHandle httpProxyExceptionHandle) {
-        this.httpProxyExceptionHandle = httpProxyExceptionHandle;
-        return this;
-    }
-
 
     public void start(int port) {
         start(null, port);
@@ -170,24 +167,6 @@ public class ProxyApplicationContext{
         }
         return channelFuture;
     }
-//
-
-//    public CompletionStage<Void> startAsync(String ip, int port) {
-//        this.host = ip;
-//        this.port = port;
-//        ChannelFuture channelFuture = doBind();
-//        CompletableFuture<Void> future = new CompletableFuture<>();
-//        channelFuture.addListener(start -> {
-//            if (start.isSuccess()) {
-//                future.complete(null);
-//                shutdownHook();
-//            } else {
-//                future.completeExceptionally(start.cause());
-//                close();
-//            }
-//        });
-//        return future;
-//    }
     @ChannelHandler.Sharable
     public static class Http2ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
         Http2ServerHandler(){

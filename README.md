@@ -5,16 +5,10 @@
 [![maven](https://img.shields.io/maven-central/v/com.github.monkeywie/proxyee.svg)](https://search.maven.org/search?q=com.github.monkeywie)
 [![license](https://img.shields.io/github/license/monkeywie/proxyee.svg)](https://opensource.org/licenses/MIT)
 
-  </p>
-  <p>
-
-[English](/README.md) | [中文](/README_zh-CN.md)
-
-  </p>
 </div>
 
 ---
-
+## 支持spring boot，基于[proxy ee](https://github.com/monkeyWie/proxyee)开发
 ## Introduction
 
 Proxyee is a JAVA written HTTP proxy server library that supports HTTP, HTTPS, Websocket protocols, and supports MITM (Man-in-the-middle), which can capture and tamper with HTTP, HTTPS packet.
@@ -34,14 +28,42 @@ Proxyee is a JAVA written HTTP proxy server library that supports HTTP, HTTPS, W
 - Normal HTTP proxy
 
 ```java
-new HttpProxyServer().start(9999);
+new ProxyApplicationContext().start(9999);
+```
+## Spring 模式
+
+```java
+import com.github.monkeywie.proxyee.SpringProxyApplicationContext;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class HttpProxyServerApp {
+    public SpringProxyApplicationContext proxy() {
+        SpringProxyApplicationContext springProxyApplicationContext = new SpringProxyApplicationContext();
+        springProxyApplicationContext.start(9999);
+        return springProxyApplicationContext;
+    }
+
+}
+
+```
+## Spring boot模式
+```java
+@SpringBootApplication
+@ConfigurationPropertiesScan
+public class HttpProxyServerApp {
+    public static void main(String[] args) {
+        SpringApplication application = new SpringApplication(HttpProxyServerApp.class);
+        application.run(args);
+    }
+
+}
+
 ```
 
 - MITM HTTP proxy
 
 The following is a demonstration of a MITM attack that modifies the response header and response body when visiting the Baidu homepage, as shown in the figure below：
-
-![20200724152245](https://raw.githubusercontent.com/monkeyWie/pic-bed/master/proxyee/20200724152245.png)
 
 Code：
 
@@ -170,15 +192,4 @@ SSL handshake
 ![SSL握手](https://raw.githubusercontent.com/monkeyWie/pic-bed/master/proxyee/20190918134332.png)
 
 HTTP communication
-
-![HTTP通讯](https://raw.githubusercontent.com/monkeyWie/pic-bed/master/proxyee/20190918134232.png)
-
-## How it works
-
-- [JAVA 写 HTTP 代理服务器(一)-socket 实现](https://segmentfault.com/a/1190000011810997)
-- [JAVA 写 HTTP 代理服务器(二)-netty 实现](https://segmentfault.com/a/1190000011811082)
-- [JAVA 写 HTTP 代理服务器(三)-https 明文捕获](https://segmentfault.com/a/1190000011811150)
-
-## Thanks
-
-[![intellij-idea](idea.svg)](https://www.jetbrains.com/?from=proxyee)
+## Thanks [Proxy EE](https://github.com/monkeyWie/proxyee)
