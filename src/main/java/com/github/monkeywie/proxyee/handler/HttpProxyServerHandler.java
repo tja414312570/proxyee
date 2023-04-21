@@ -20,10 +20,13 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.concurrent.DefaultPromise;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
@@ -97,9 +100,9 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-//        System.err.println("\n-==========");
-        System.err.println(msg.getClass()+"\n");
-//        System.err.println(msg);
+        System.err.println("\n-==========");
+//        System.err.println(msg.getClass()+"\n");
+        System.err.println(msg);
         if (msg instanceof HttpRequest) {
             HttpRequest request = (HttpRequest) msg;
             DecoderResult result = request.decoderResult();
@@ -206,10 +209,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
             // 如果connect后面跑的是HTTP报文，也可以抓包处理
             if (isHttp(byteBuf)) {
-//                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
-//                        getServerConfig().getMaxInitialLineLength(),
-//                        getServerConfig().getMaxHeaderSize(),
-//                        getServerConfig().getMaxChunkSize()));
+                ctx.pipeline().addFirst("httpCodec", new HttpServerCodec());
                 ctx.pipeline().fireChannelRead(msg);
                 return;
             }
@@ -295,11 +295,12 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
              * hello不带SNI扩展时会直接返回Received fatal alert: handshake_failure(握手错误)
              * 例如：https://cdn.mdn.mozilla.net/static/img/favicon32.7f3da72dcea1.png
              */
+            System.err.println("转发;"+isHttp);
             ChannelInitializer channelInitializer = isHttp ? new HttpProxyInitializer(channel, pipeRp, this.context)
                     : new TunnelProxyInitializer(channel, this.context);
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(this.context.getProxyGroup()) // 注册线程池
-                    .channel(NioSocketChannel.class) // 使用NioSocketChannel来作为连接用的channel类
+                    .channel(NioSocketChannel.class)
                     .handler(channelInitializer);
             if (this.context.getProxyHandler() != null) {
                 // 代理服务器解析DNS和连接
@@ -312,7 +313,15 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             System.err.println(pipeRp.getHost()+"===>"+pipeRp.getPort());
             getChannelFuture().addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
-                    future.channel().writeAndFlush(msg);
+                    ChannelFuture channelFuture = future.channel().writeAndFlush(msg);
+//                    if(!channelFuture.isSuccess()){
+//                        System.err.println(channelFuture.cause());
+//                        channel.close();
+//                        ChannelPromise defaultPromise = new DefaultChannelPromise(future.channel());
+//                        defaultPromise.setFailure(channelFuture.cause());
+//                        future.channel().close(defaultPromise);
+//                        return;
+//                    }
                     synchronized (getRequestList()) {
                         getRequestList().forEach(obj -> future.channel().writeAndFlush(obj));
                         getRequestList().clear();

@@ -10,6 +10,7 @@ import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.handler.codec.http.HttpClientCodec;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.proxy.HttpProxyHandler;
 import io.netty.handler.proxy.Socks4ProxyHandler;
@@ -63,6 +64,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
         try {
             this.clientSslContext = contextBuilder.build();
             if (ssl.isHandleSsl()) {
+                this.handleSsl = true;
                 X509Certificate caCert;
                 PrivateKey caPriKey;
                 PathMatchingResourcePatternResolver resourceLoader = new DefaultPathMatchingResourcePatternResolver();
@@ -105,7 +107,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
             if (requestProto.getSsl()) {
                 ch.pipeline().addLast(this.clientSslContext.newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
             }
-            ch.pipeline().addLast("httpCodec",new HttpServerCodec(
+            ch.pipeline().addLast("httpCodec",new HttpClientCodec(
                     codec.getMaxInitialLineLength(),
                     codec.getMaxHeaderSize(),
                     codec.getMaxChunkSize()) );

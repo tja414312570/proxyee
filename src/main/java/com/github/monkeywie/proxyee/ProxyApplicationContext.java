@@ -59,7 +59,7 @@ public class ProxyApplicationContext{
     private String host;
     private int port;
     private AddressResolverGroup<? extends SocketAddress> resolver;
-    private boolean handleSsl;
+    protected boolean handleSsl;
 
     protected Consumer<Channel> serverChannelInitializer;
 
@@ -167,23 +167,6 @@ public class ProxyApplicationContext{
         }
         return channelFuture;
     }
-    @ChannelHandler.Sharable
-    public static class Http2ServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
-        Http2ServerHandler(){
-            this.isSharable();
-        }
-
-        @Override
-        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-            // 处理HTTP/2请求
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            // 处理异常
-        }
-    }
-
     private ChannelFuture doBind() {
         ServerBootstrap bootstrap = new ServerBootstrap();
         bootstrap.group(bossGroup, workerGroup)
@@ -214,12 +197,4 @@ public class ProxyApplicationContext{
 
         CertPool.clear();
     }
-
-    /**
-     * 注册JVM关闭的钩子以释放资源
-     */
-    public void shutdownHook() {
-        Runtime.getRuntime().addShutdownHook(new Thread(this::close, "Server Shutdown Thread"));
-    }
-
 }
