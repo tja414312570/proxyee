@@ -7,7 +7,7 @@ import java.util.List;
 @Data
 public class SSLConfiguration {
     private List<String> chicpers;
-    private boolean handleSsl;
+    private boolean handleSsl = true;
     private String caCert;
     private String caKey;
 }

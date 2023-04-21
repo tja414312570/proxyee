@@ -186,7 +186,6 @@ public class HttpProxyServer {
         }
     }
 
-
     private ChannelFuture doBind(String ip, int port) {
         init();
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
@@ -211,9 +210,9 @@ public class HttpProxyServer {
                                 serverConfig.getMaxInitialLineLength(),
                                 serverConfig.getMaxHeaderSize(),
                                 serverConfig.getMaxChunkSize()));
-                        pipeline.addLast("serverHandle",
-                                new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
-                                        httpProxyExceptionHandle));
+//                        pipeline.addLast("serverHandle",
+//                                new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
+//                                        httpProxyExceptionHandle));
                     }
                 });
 //                .childHandler(new ChannelInitializer<Channel>() {

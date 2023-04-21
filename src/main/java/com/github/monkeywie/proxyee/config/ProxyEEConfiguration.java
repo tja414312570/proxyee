@@ -14,5 +14,9 @@ public class ProxyEEConfiguration {
     private ConfigThreads threads;
     @NestedConfigurationProperty
     private SSLConfiguration ssl;
+    @NestedConfigurationProperty
+    private AuthConfiguration auth;
+    @NestedConfigurationProperty
+    private UpstreamConfiguration upstream;
 
 }

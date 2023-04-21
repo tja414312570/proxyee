@@ -2,6 +2,9 @@ spring:
   proxyee:
     host: 127.0.0.1
     port: 9999
+    upstream:
+      host: 127.0.0.1
+      port: 7890
     ssl:
       caCert: classpath*:ca.crt
       caKey: classpath*:ca_private.der
@@ -9,3 +12,6 @@ spring:
       work: 3
       proxy: 4
       boss: 5
+    auth:
+      username: test
+      password: 123

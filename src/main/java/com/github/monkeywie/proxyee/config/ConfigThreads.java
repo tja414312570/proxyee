@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 public class ConfigThreads{
-    private int work;
+    private int worker;
     private int boss;
     private int proxy;
 }

@@ -1,5 +1,6 @@
 package com.github.monkeywie.proxyee.handler;
 
+import com.github.monkeywie.proxyee.SpringProxyApplicationContext;
 import com.github.monkeywie.proxyee.crt.CertPool;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.intercept.HttpProxyIntercept;
@@ -35,11 +36,11 @@ import java.util.List;
 
 public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
+    private final ProxyHandler proxyHandler;
     private ChannelFuture cf;
     private RequestProto requestProto;
     private int status = 0;
     private final HttpProxyServerConfig serverConfig;
-    private final ProxyConfig proxyConfig;
     private final HttpProxyInterceptInitializer interceptInitializer;
     private HttpProxyInterceptPipeline interceptPipeline;
     private final HttpProxyExceptionHandle exceptionHandle;
@@ -80,10 +81,6 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         this.requestList = requestList;
     }
 
-    public ProxyConfig getProxyConfig() {
-        return proxyConfig;
-    }
-
     protected RequestProto getRequestProto() {
         return requestProto;
     }
@@ -112,9 +109,10 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         this.interceptPipeline = interceptPipeline;
     }
 
-    public HttpProxyServerHandler(HttpProxyServerConfig serverConfig, HttpProxyInterceptInitializer interceptInitializer, ProxyConfig proxyConfig, HttpProxyExceptionHandle exceptionHandle) {
+    public HttpProxyServerHandler(HttpProxyServerConfig serverConfig, HttpProxyInterceptInitializer interceptInitializer,
+                                  ProxyHandler proxyHandler, HttpProxyExceptionHandle exceptionHandle) {
         this.serverConfig = serverConfig;
-        this.proxyConfig = proxyConfig;
+        this.proxyHandler = proxyHandler;
         this.interceptInitializer = interceptInitializer;
         this.exceptionHandle = exceptionHandle;
     }
@@ -310,10 +308,6 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
             getInterceptPipeline().beforeConnect(channel);
-
-            // by default, we use the proxy config set in the pipeline
-            ProxyHandler proxyHandler = ProxyHandleFactory.build(getInterceptPipeline().getProxyConfig() == null ?
-                    proxyConfig : getInterceptPipeline().getProxyConfig());
 
             /*
              * 添加SSL client hello的Server Name Indication extension(SNI扩展) 有些服务器对于client
