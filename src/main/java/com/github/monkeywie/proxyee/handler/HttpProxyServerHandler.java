@@ -27,12 +27,14 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.DefaultPromise;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
 
+@Slf4j
 public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     private final ProxyApplicationContext context;
@@ -184,6 +186,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             if (this.context.isHandleSsl() && byteBuf.getByte(0) == 22) {// ssl握手
                 getRequestProto().setSsl(true);
                 int port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                ctx.pipeline().addFirst("httpCodec",this.context.getHttpCodecBuilder().get());
                 SslContext sslCtx = SslContextBuilder
                         .forServer(this.context.getCertificateInfo().getServerPriKey(),
                                 CertPool.getCert(port, getRequestProto().getHost(), this.context.getCertificateInfo())).build();
@@ -312,16 +315,12 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             setChannelFuture(bootstrap.connect(pipeRp.getHost(), pipeRp.getPort()));
             System.err.println(pipeRp.getHost()+"===>"+pipeRp.getPort());
             getChannelFuture().addListener((ChannelFutureListener) future -> {
+                Throwable cause = future.cause();
+                if(cause != null){
+                    log.warn("一个错误出现在写入数据{}",cause.getMessage(),cause);
+                }
                 if (future.isSuccess()) {
-                    ChannelFuture channelFuture = future.channel().writeAndFlush(msg);
-//                    if(!channelFuture.isSuccess()){
-//                        System.err.println(channelFuture.cause());
-//                        channel.close();
-//                        ChannelPromise defaultPromise = new DefaultChannelPromise(future.channel());
-//                        defaultPromise.setFailure(channelFuture.cause());
-//                        future.channel().close(defaultPromise);
-//                        return;
-//                    }
+                    logWrite(future.channel(),msg);
                     synchronized (getRequestList()) {
                         getRequestList().forEach(obj -> future.channel().writeAndFlush(obj));
                         getRequestList().clear();
@@ -340,7 +339,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         } else {
             synchronized (getRequestList()) {
                 if (getIsConnect()) {
-                    getChannelFuture().channel().writeAndFlush(msg);
+                   logWrite(getChannelFuture().channel(),msg);
                 } else {
                     getRequestList().add(msg);
                 }
@@ -365,24 +364,35 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             @Override
             public void afterResponse(Channel clientChannel, Channel proxyChannel, HttpResponse httpResponse,
                                       HttpProxyInterceptPipeline pipeline) throws Exception {
-                clientChannel.writeAndFlush(httpResponse);
+                logWrite(clientChannel,httpResponse);
                 if (HttpHeaderValues.WEBSOCKET.toString().equals(httpResponse.headers().get(HttpHeaderNames.UPGRADE))) {
                     // websocket转发原始报文
                     proxyChannel.pipeline().remove("httpCodec");
                     clientChannel.pipeline().remove("httpCodec");
                 }
+
             }
+
+
 
             @Override
             public void afterResponse(Channel clientChannel, Channel proxyChannel, HttpContent httpContent,
                                       HttpProxyInterceptPipeline pipeline) throws Exception {
-                clientChannel.writeAndFlush(httpContent);
+                logWrite(clientChannel,httpContent);
             }
         });
         this.context.getProxyInterceptInitializer().init(interceptPipeline);
         return interceptPipeline;
     }
-
+    private void logWrite(Channel clientChannel, Object msg) {
+        ChannelFuture channelFuture = clientChannel.writeAndFlush(msg);
+        channelFuture.addListener(future->{
+            Throwable cause = future.cause();
+            if(cause != null){
+                log.warn("一个错误出现在写入数据{}",cause.getMessage(),cause);
+            }
+        });
+    }
     // fix issue #186: 不拦截https报文时，暴露一个扩展点用于代理设置，并且保持一致的编程接口
     private HttpProxyInterceptPipeline buildOnlyConnectPipeline() {
         HttpProxyInterceptPipeline interceptPipeline = new HttpProxyInterceptPipeline(new HttpProxyIntercept());

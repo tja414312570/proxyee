@@ -91,12 +91,13 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
             log.error("SSL init fail,cause:" + e.getMessage(),e);
         }
         CodecConfiguration codec = proxyEEConfiguration.getCodec();
+        this.httpCodecBuilder = ()-> new HttpServerCodec(
+                codec.getMaxInitialLineLength(),
+                codec.getMaxHeaderSize(),
+                codec.getMaxChunkSize());
         //服务渠道初始化工具
         this.serverChannelInitializer = ch -> {
-            ch.pipeline().addLast("httpCodec", new HttpServerCodec(
-                    codec.getMaxInitialLineLength(),
-                    codec.getMaxHeaderSize(),
-                    codec.getMaxChunkSize()));
+            ch.pipeline().addLast("httpCodec", this.httpCodecBuilder.get());
             ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{

@@ -66,6 +66,7 @@ public class ProxyApplicationContext{
     protected HttpProxyChannelInitializer httpProxyChannelInitializer;
 
     protected TunnelProxyChannelInitializer tunnelProxyChannelInitializer;
+    protected Supplier<HttpServerCodec> httpCodecBuilder;
 
     public void init(HttpProxyServerConfig serverConfig) {
         try {
@@ -105,11 +106,12 @@ public class ProxyApplicationContext{
                 certificateInfo.setServerPriKey(keyPair.getPrivate());
                 certificateInfo.setServerPubKey(keyPair.getPublic());
             }
+            this.httpCodecBuilder = ()-> new HttpServerCodec(
+                    serverConfig.getMaxInitialLineLength(),
+                    serverConfig.getMaxHeaderSize(),
+                    serverConfig.getMaxChunkSize());
             this.serverChannelInitializer = ch->{
-                ch.pipeline().addLast("httpCodec",new HttpServerCodec(
-                        serverConfig.getMaxInitialLineLength(),
-                        serverConfig.getMaxHeaderSize(),
-                        serverConfig.getMaxChunkSize()));
+                ch.pipeline().addLast("httpCodec",this.httpCodecBuilder.get());
                 ch.pipeline().addLast("serverHandle",new HttpProxyServerHandler(this));
             };
             this.httpProxyChannelInitializer = (ch,proxy)->{

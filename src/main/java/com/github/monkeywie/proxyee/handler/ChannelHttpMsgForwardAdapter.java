@@ -3,6 +3,7 @@ package com.github.monkeywie.proxyee.handler;
 import com.github.monkeywie.proxyee.ProxyApplicationContext;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -23,7 +24,6 @@ public class ChannelHttpMsgForwardAdapter extends ChannelTunnelMsgForwardAdapter
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         //客户端channel已关闭则不转发了
         System.err.println("响应转发:"+msg);
-        System.err.println(msg);
         if (!clientChannel.isOpen()) {
             ReferenceCountUtil.release(msg);
             return;
@@ -38,10 +38,14 @@ public class ChannelHttpMsgForwardAdapter extends ChannelTunnelMsgForwardAdapter
                 this.exceptionCaught(ctx, cause);
                 return;
             }
-            System.err.println((msg instanceof FullHttpRequest)+"--http->"+msg);
+            System.err.println((msg instanceof FullHttpRequest)+"----------------------http->");
+//            ChannelFuture channelFuture = clientChannel.writeAndFlush(msg);
             interceptPipeline.afterResponse(clientChannel, ctx.channel(), (HttpResponse) msg);
         } else if (msg instanceof HttpContent) {
+            System.err.println((msg instanceof FullHttpRequest)+"----------------------httpc->");
+//            clientChannel.writeAndFlush(msg);
             interceptPipeline.afterResponse(clientChannel, ctx.channel(), (HttpContent) msg);
+//            clientChannel.close();
         } else {
             clientChannel.writeAndFlush(msg);
         }

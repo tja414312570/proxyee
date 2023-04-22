@@ -31,13 +31,13 @@ public class ChannelTunnelMsgForwardAdapter extends ChannelInboundHandlerAdapter
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-        System.err.println("通道关闭"+ctx.channel().closeFuture().cause());
+        System.err.println("通道关闭"+ctx.channel());
     }
 
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
         ctx.channel().close();
-        clientChannel.close();
+//        clientChannel.close();
         System.err.println("通道取消注册");
     }
 
