@@ -11,6 +11,7 @@ import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.http.HttpClientCodec;
+import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.proxy.HttpProxyHandler;
 import io.netty.handler.proxy.Socks4ProxyHandler;
@@ -98,6 +99,12 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
         //服务渠道初始化工具
         this.serverChannelInitializer = ch -> {
             ch.pipeline().addLast("httpCodec", this.httpCodecBuilder.get());
+            // 创建HttpObjectAggregator对象
+            HttpObjectAggregator aggregator = new HttpObjectAggregator(65536);
+
+// 将HttpObjectAggregator添加到ChannelPipeline中
+            ch.pipeline().addLast("aggregator", aggregator);
+
             ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{

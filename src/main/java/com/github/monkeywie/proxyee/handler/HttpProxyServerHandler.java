@@ -102,7 +102,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        System.err.println("\n-==========");
+        System.err.println("\n-==========================="+(msg instanceof FullHttpRequest));
 //        System.err.println(msg.getClass()+"\n");
         System.err.println(msg);
         if (msg instanceof HttpRequest) {
@@ -298,7 +298,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
              * hello不带SNI扩展时会直接返回Received fatal alert: handshake_failure(握手错误)
              * 例如：https://cdn.mdn.mozilla.net/static/img/favicon32.7f3da72dcea1.png
              */
-            System.err.println("转发;"+isHttp);
+            System.err.println("转发;"+isHttp+msg);
             ChannelInitializer channelInitializer = isHttp ? new HttpProxyInitializer(channel, pipeRp, this.context)
                     : new TunnelProxyInitializer(channel, this.context);
             Bootstrap bootstrap = new Bootstrap();
@@ -320,7 +320,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                     log.warn("一个错误出现在写入数据{}",cause.getMessage(),cause);
                 }
                 if (future.isSuccess()) {
-                    logWrite(future.channel(),msg);
+                      logWrite(future.channel(),msg);
                     synchronized (getRequestList()) {
                         getRequestList().forEach(obj -> future.channel().writeAndFlush(obj));
                         getRequestList().clear();
@@ -390,6 +390,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             Throwable cause = future.cause();
             if(cause != null){
                 log.warn("一个错误出现在写入数据{}",cause.getMessage(),cause);
+                log.warn("错误的数据{}",msg);
             }
         });
     }
