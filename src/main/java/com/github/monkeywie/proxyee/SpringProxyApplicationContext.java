@@ -7,6 +7,7 @@ import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
+import com.github.monkeywie.proxyee.handler.ProxyProtocolDecodHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -98,14 +99,14 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
                 codec.getMaxChunkSize());
         //服务渠道初始化工具
         this.serverChannelInitializer = ch -> {
-            ch.pipeline().addLast("httpCodec", this.httpCodecBuilder.get());
-            // 创建HttpObjectAggregator对象
-            HttpObjectAggregator aggregator = new HttpObjectAggregator(65536);
+//            ch.pipeline().addLast("httpCodec", this.httpCodecBuilder.get());
+//            // 创建HttpObjectAggregator对象
+//            HttpObjectAggregator aggregator = new HttpObjectAggregator(65536);
+//
+//// 将HttpObjectAggregator添加到ChannelPipeline中
+//            ch.pipeline().addLast("aggregator", aggregator);
 
-// 将HttpObjectAggregator添加到ChannelPipeline中
-            ch.pipeline().addLast("aggregator", aggregator);
-
-            ch.pipeline().addLast("serverHandle", new HttpProxyServerHandler(this));
+            ch.pipeline().addLast("serverHandle", new ProxyProtocolDecodHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{
             if (proxyHandler != null) {

@@ -11,22 +11,19 @@ import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
 import com.github.monkeywie.proxyee.server.auth.model.HttpToken;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import com.github.monkeywie.proxyee.util.ProtoUtil.RequestProto;
-import com.google.gson.Gson;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.concurrent.DefaultPromise;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
@@ -34,8 +31,11 @@ import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * 代理协议解析
+ */
 @Slf4j
-public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
+public class ProxyProtocolDecodHandler extends ChannelInboundHandlerAdapter {
 
     private final ProxyApplicationContext context;
     private ChannelFuture cf;
@@ -95,7 +95,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         this.interceptPipeline = interceptPipeline;
     }
 
-    public HttpProxyServerHandler(ProxyApplicationContext context) {
+    public ProxyProtocolDecodHandler(ProxyApplicationContext context) {
         this.context = context;
     }
 
@@ -103,8 +103,27 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-==========================="+(msg instanceof FullHttpRequest));
-//        System.err.println(msg.getClass()+"\n");
         System.err.println(msg);
+        if(msg instanceof  ByteBuf) {
+            byte aByte = ((ByteBuf) msg).getByte(0);
+            switch (aByte) {
+                case 22:
+                    System.err.println("tls握手");
+                    ctx.channel().pipeline().addLast(new HttpsProxyConnectedHandler(this.context));
+                    ctx.fireChannelRead(msg);
+                    return;
+                case 5:
+                    System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
+                    ByteBuf buf = Unpooled.buffer(2);
+                    buf.writeByte(0x05);
+                    buf.writeByte(0xff);
+                    ctx.writeAndFlush(buf);
+                    return;
+                default:
+                    System.err.println("其他协议");
+            }
+        }
+        //其它请求
         if (msg instanceof HttpRequest) {
             HttpRequest request = (HttpRequest) msg;
             DecoderResult result = request.decoderResult();
