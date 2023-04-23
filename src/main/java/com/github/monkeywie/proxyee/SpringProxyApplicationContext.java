@@ -6,13 +6,11 @@ import com.github.monkeywie.proxyee.domain.CertificateInfo;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
-import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
-import com.github.monkeywie.proxyee.handler.ProxyProtocolDecodHandler;
+import com.github.monkeywie.proxyee.handler.ProxyProtocolDecodeHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.handler.codec.http.HttpClientCodec;
-import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.proxy.HttpProxyHandler;
 import io.netty.handler.proxy.Socks4ProxyHandler;
@@ -106,7 +104,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
 //// 将HttpObjectAggregator添加到ChannelPipeline中
 //            ch.pipeline().addLast("aggregator", aggregator);
 
-            ch.pipeline().addLast("serverHandle", new ProxyProtocolDecodHandler(this));
+            ch.pipeline().addLast("serverHandle", new ProxyProtocolDecodeHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{
             if (proxyHandler != null) {
