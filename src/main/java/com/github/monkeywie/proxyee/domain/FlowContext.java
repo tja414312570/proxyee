@@ -1,13 +1,16 @@
 package com.github.monkeywie.proxyee.domain;
 
+import com.github.monkeywie.proxyee.ProxyApplicationContext;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import lombok.Data;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,8 +21,9 @@ public class FlowContext {
 
     public static final AttributeKey<FlowContext> PROXY_EE_FLOW_CONTEXT = AttributeKey.valueOf("$_PROXY_EE_FLOW_CONTEXT");
 
-    Map<Object,Object> values = new HashMap<>();
     private boolean connected;
+
+    private boolean remoteConnected;
     private boolean readied;
     private boolean news;
 
@@ -29,28 +33,56 @@ public class FlowContext {
 
     private ProtoUtil.RequestProto requestProto;
 
-    public <K,V> void setValue(K key,V value){
-        this.values.put(key,value);
-    }
+    private List<Object> messageList;
+//    private ChannelHandlerContext channelHandlerContext;
+
+    private Channel clientChannel;
+    private Channel proxyChannel;
+    private ProxyApplicationContext applicationContext;
+    private final Map<Object,Object> attributes = new HashMap<>();
+
+
     @SuppressWarnings("unchecked")
-    public <K,V> V getValue(K key){
-        Object o = this.values.get(key);
-        return (V) o;
+    public <T> T getAttribute(Object key) {
+        return (T) attributes.get(key);
     }
-    public static FlowContext get(ChannelHandlerContext ctx) {
+
+    public <T> void setAttribute(Object key, T value) {
+        attributes.put(key,value);
+    }
+
+    public static FlowContext get(ChannelHandlerContext ctx, ProxyApplicationContext context) {
         Attribute<FlowContext> attr = ctx.channel().attr(FlowContext.PROXY_EE_FLOW_CONTEXT);
         FlowContext flowContext = attr.get();
         if (flowContext == null) {
             flowContext = new FlowContext();
             attr.set(flowContext);
             flowContext.setNews(true);
+            flowContext.setApplicationContext(context);
             System.err.println("创建上下文:" + System.identityHashCode(flowContext));
+            flowContext.clientChannel = ctx.channel();
+        } else {
+            flowContext.setNews(false);
+            System.err.println("得到存在的上下文:" + System.identityHashCode(flowContext));
+        }
+                                              return flowContext;
+    }
+    public void bindProxyChannel(Channel channel) {
+        channel.attr(FlowContext.PROXY_EE_FLOW_CONTEXT).set(this);
+        this.proxyChannel = channel;
+    }
+    public static FlowContext get(ChannelHandlerContext ctx) {
+        return get(ctx.channel());
+    }
+    public static FlowContext get(Channel channel) {
+        Attribute<FlowContext> attr = channel.attr(FlowContext.PROXY_EE_FLOW_CONTEXT);
+        FlowContext flowContext = attr.get();
+        if (flowContext == null) {
+            throw new RuntimeException("没有上下文");
         } else {
             flowContext.setNews(false);
             System.err.println("得到存在的上下文:" + System.identityHashCode(flowContext));
         }
         return flowContext;
     }
-
-
 }

@@ -3,10 +3,10 @@ package com.github.monkeywie.proxyee;
 import com.github.monkeywie.proxyee.crt.CertPool;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
+import com.github.monkeywie.proxyee.domain.FlowContext;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
-import com.github.monkeywie.proxyee.handler.HttpProxyServerHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.proxy.ProxyConfig;
 import com.github.monkeywie.proxyee.server.HttpProxyChannelInitializer;
@@ -113,13 +113,14 @@ public class ProxyApplicationContext{
                     serverConfig.getMaxChunkSize());
             this.serverChannelInitializer = ch->{
                 ch.pipeline().addLast("httpCodec",this.httpCodecBuilder.get());
-                ch.pipeline().addLast("serverHandle",new HttpProxyServerHandler(this));
+//                ch.pipeline().addLast("serverHandle",new HttpProxyServerHandler(this));
             };
             this.httpProxyChannelInitializer = (ch,proxy)->{
                 if (proxyHandler != null) {
                     ch.pipeline().addLast(proxyHandler.get());
                 }
-                ProtoUtil.RequestProto requestProto = proxy.getRequestProto();
+                FlowContext flowContext = FlowContext.get(ch);
+                ProtoUtil.RequestProto requestProto = flowContext.getRequestProto();
                 if (requestProto.getSsl()) {
                     ch.pipeline().addLast(this.clientSslContext.newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
                 }
@@ -127,13 +128,14 @@ public class ProxyApplicationContext{
                         serverConfig.getMaxInitialLineLength(),
                         serverConfig.getMaxHeaderSize(),
                         serverConfig.getMaxChunkSize()) );
-                ch.pipeline().addLast("httpMsgForward", new ChannelHttpMsgForwardAdapter(proxy.getClientChannel(), this));
+                ch.pipeline().addLast("httpMsgForward", new ChannelHttpMsgForwardAdapter(this, flowContext));
             };
             this.tunnelProxyChannelInitializer = (ch,proxy)->{
+                FlowContext flowContext = FlowContext.get(ch);
                 if (proxyHandler != null) {
                     ch.pipeline().addLast(proxyHandler.get());
                 }
-                ch.pipeline().addLast("tunnelMsgForward",new ChannelTunnelMsgForwardAdapter(proxy.getClientChannel(), this));
+                ch.pipeline().addLast("tunnelMsgForward",new ChannelTunnelMsgForwardAdapter(this, flowContext));
             };
             this.bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
             this.workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());

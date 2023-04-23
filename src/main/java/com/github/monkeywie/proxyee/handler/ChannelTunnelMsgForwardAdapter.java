@@ -1,6 +1,7 @@
 package com.github.monkeywie.proxyee.handler;
 
 import com.github.monkeywie.proxyee.ProxyApplicationContext;
+import com.github.monkeywie.proxyee.domain.FlowContext;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -12,11 +13,14 @@ import io.netty.util.ReferenceCountUtil;
  * 隧道消息转发
  */
 public class ChannelTunnelMsgForwardAdapter extends ChannelInboundHandlerAdapter {
-    protected Channel clientChannel;
-    protected ProxyApplicationContext context;
-    public ChannelTunnelMsgForwardAdapter(Channel channel, ProxyApplicationContext context){
-        this.clientChannel = channel;
-        this.context = context;
+    private final ProxyApplicationContext applicationContext;
+    protected final Channel clientChannel;
+    protected final FlowContext flowContext;
+    public ChannelTunnelMsgForwardAdapter( ProxyApplicationContext applicationContext,
+                                          FlowContext flowContext){
+        this.flowContext = flowContext;
+        this.clientChannel = flowContext.getChannelContext().channel();
+        this.applicationContext = applicationContext;
     }
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
@@ -46,7 +50,8 @@ public class ChannelTunnelMsgForwardAdapter extends ChannelInboundHandlerAdapter
         cause.printStackTrace();
         ctx.channel().close();
         clientChannel.close();
-        HttpProxyExceptionHandle exceptionHandle =context.getHttpProxyExceptionHandle();
+        HttpProxyExceptionHandle exceptionHandle =this.applicationContext
+                .getHttpProxyExceptionHandle();
         exceptionHandle.afterCatch(clientChannel, ctx.channel(), cause);
     }
 }

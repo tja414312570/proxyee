@@ -40,7 +40,6 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     private final ProxyApplicationContext context;
     private ChannelFuture cf;
     private List requestList;
-    private boolean isConnect;
 
     public ProxyProtocolDecodeHandler(ProxyApplicationContext context) {
         this.context = context;
@@ -54,14 +53,6 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         this.cf = cf;
     }
 
-    protected boolean getIsConnect() {
-        return isConnect;
-    }
-
-    protected void setIsConnect(boolean isConnect) {
-        this.isConnect = isConnect;
-    }
-
     protected List getRequestList() {
         return requestList;
     }
@@ -73,7 +64,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" + (msg instanceof FullHttpRequest));
-        FlowContext flowContext = FlowContext.get(ctx);
+        FlowContext flowContext = FlowContext.get(ctx,this.context);
         System.err.println(flowContext);
         System.err.println(msg);
         if (msg instanceof ByteBuf) {
@@ -147,7 +138,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                     ctx.channel().close();
                     return;
                 }
-                if (!authenticate(ctx, request)) {
+                if (!authenticate(ctx, request,flowContext)) {
                     logWrite(ctx.channel(), HttpResponseStatus.FORBIDDEN);
                     ctx.channel().close();
                     return;
@@ -215,7 +206,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         this.context.getHttpProxyExceptionHandle().beforeCatch(ctx.channel(), cause);
     }
 
-    private boolean authenticate(ChannelHandlerContext ctx, HttpRequest request) {
+    private boolean authenticate(ChannelHandlerContext ctx, HttpRequest request,FlowContext flowContext) {
         if (this.context.getAuthenticationProvider() != null) {
             HttpProxyAuthenticationProvider authProvider = this.context.getAuthenticationProvider();
 
@@ -231,7 +222,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                 ctx.writeAndFlush(response);
                 return false;
             }
-            HttpAuthContext.setToken(ctx.channel(), httpToken);
+            flowContext.setAttribute(HttpAuthContext.AUTH_KEY,httpToken);
         }
         return true;
     }
@@ -264,8 +255,8 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
              * 例如：https://cdn.mdn.mozilla.net/static/img/favicon32.7f3da72dcea1.png
              */
             System.err.println("转发;" + flowContext.isHttp() + msg);
-            ChannelInitializer channelInitializer = flowContext.isHttp() ? new HttpProxyInitializer(channel, pipeRp, this.context)
-                    : new TunnelProxyInitializer(channel, this.context);
+            ChannelInitializer channelInitializer = flowContext.isHttp() ? new HttpProxyInitializer(flowContext)
+                    : new TunnelProxyInitializer(flowContext);
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(this.context.getProxyGroup()) // 注册线程池
                     .channel(NioSocketChannel.class)
@@ -290,7 +281,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                     synchronized (getRequestList()) {
                         getRequestList().forEach(obj -> future.channel().writeAndFlush(obj));
                         getRequestList().clear();
-                        setIsConnect(true);
+                        flowContext.setRemoteConnected(true);
                     }
                 } else {
                     synchronized (getRequestList()) {
@@ -304,7 +295,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
             });
         } else {
             synchronized (getRequestList()) {
-                if (getIsConnect()) {
+                if (flowContext.isRemoteConnected()) {
                     logWrite(getChannelFuture().channel(), msg);
                 } else {
                     getRequestList().add(msg);

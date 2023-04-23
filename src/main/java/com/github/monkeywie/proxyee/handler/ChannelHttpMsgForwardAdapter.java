@@ -1,6 +1,7 @@
 package com.github.monkeywie.proxyee.handler;
 
 import com.github.monkeywie.proxyee.ProxyApplicationContext;
+import com.github.monkeywie.proxyee.domain.FlowContext;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -16,8 +17,9 @@ import io.netty.util.ReferenceCountUtil;
  */
 public class ChannelHttpMsgForwardAdapter extends ChannelTunnelMsgForwardAdapter {
 
-    public  ChannelHttpMsgForwardAdapter(Channel clientChannel, ProxyApplicationContext context) {
-        super(clientChannel,context);
+    public  ChannelHttpMsgForwardAdapter(ProxyApplicationContext applicationContext,
+                                         FlowContext flowContext) {
+        super(applicationContext,flowContext);
     }
 
     @Override
@@ -28,8 +30,7 @@ public class ChannelHttpMsgForwardAdapter extends ChannelTunnelMsgForwardAdapter
             ReferenceCountUtil.release(msg);
             return;
         }
-        HttpProxyInterceptPipeline interceptPipeline = ((HttpProxyServerHandler) clientChannel.pipeline()
-                .get("serverHandle")).getInterceptPipeline();
+        HttpProxyInterceptPipeline interceptPipeline = flowContext.getInterceptPipeline();
         if (msg instanceof HttpResponse) {
             DecoderResult decoderResult = ((HttpResponse) msg).decoderResult();
             Throwable cause = decoderResult.cause();

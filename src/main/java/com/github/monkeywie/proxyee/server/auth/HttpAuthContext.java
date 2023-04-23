@@ -11,13 +11,5 @@ import io.netty.channel.Channel;
  */
 public class HttpAuthContext {
 
-    private static final String AUTH_KEY = "http_auth";
-
-    public static HttpToken getToken(Channel clientChanel) {
-        return HttpContext.get(clientChanel, AUTH_KEY);
-    }
-
-    public static void setToken(Channel clientChanel, HttpToken httpToken) {
-        HttpContext.set(clientChanel, AUTH_KEY, httpToken);
-    }
+    public static final String AUTH_KEY = "http_auth";
 }
