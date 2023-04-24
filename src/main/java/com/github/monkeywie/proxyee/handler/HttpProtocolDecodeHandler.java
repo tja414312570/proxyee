@@ -62,24 +62,6 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         this.requestList = requestList;
     }
 
-    protected void resetAfter(final ChannelHandlerContext ctx,String name){
-        String lastName = ctx.pipeline().lastContext().name();
-        List<String> names = ctx.pipeline().names();
-        boolean rest = false;
-        for (int i = 0; i < names.size(); i++) {
-            if(StringUtils.equals(name,name)){
-                rest = true;
-                continue;
-            }
-            if(rest){
-                ctx.pipeline().remove(name);
-            }
-            if(StringUtils.equals(name,lastName)){
-               break;
-            }
-        }
-
-    }
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" + (msg instanceof FullHttpRequest));
@@ -137,7 +119,6 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                 }
                 HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpsResponse.SUCCESS);
                 ctx.writeAndFlush(response);
-                ctx.channel().pipeline().remove("httpCodec");
                 ReferenceCountUtil.release(msg);
                 flowContext.setConnected(true);
             }else{

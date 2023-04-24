@@ -29,8 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 /**
  * 代理协议解析
@@ -62,23 +61,40 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         this.requestList = requestList;
     }
 
-    protected void resetAfter(final ChannelHandlerContext ctx,String name){
+    protected void resetAfter(final ChannelHandlerContext ctx,String beanName){
         String lastName = ctx.pipeline().lastContext().name();
+        if(StringUtils.equals(beanName,lastName)){
+            return;
+        }
+//        Iterator<Map.Entry<String, ChannelHandler>> iterator = ctx.pipeline().iterator();
+//        boolean removable = false;
+//        while(iterator.hasNext()){
+//            String name = iterator.next().getKey();
+//            if (StringUtils.equals(name, beanName)) {
+//                removable = true;
+//                continue;
+//            }
+//            if (removable) {
+//                iterator.remove();
+//            }
+//            if (StringUtils.equals(name, lastName)) {
+//                break;
+//            }
+//        }
         List<String> names = ctx.pipeline().names();
-        boolean rest = false;
-        for (int i = 0; i < names.size(); i++) {
-            if(StringUtils.equals(name,name)){
-                rest = true;
+        boolean removable = false;
+        for (String name : names) {
+            if (StringUtils.equals(name, beanName)) {
+                removable = true;
                 continue;
             }
-            if(rest){
+            if (removable) {
                 ctx.pipeline().remove(name);
             }
-            if(StringUtils.equals(name,lastName)){
-               break;
+            if (StringUtils.equals(name, lastName)) {
+                break;
             }
         }
-
     }
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
@@ -91,15 +107,25 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
             byte aByte = ((ByteBuf) msg).getByte(0);
             switch (aByte) {
                 case 22:
-                    int port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
-                    SslContext sslCtx = SslContextBuilder
+                    String hostName;
+                    int port;
+                    if(flowContext.isReadied()){
+                        port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                        hostName =  flowContext.getRequestProto().getHost();
+                        flowContext.getRequestProto().setSsl(true);
+                    }else{
+                        port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                        hostName = ((InetSocketAddress) ctx.channel().localAddress()).getHostName();
+                    }
+                    ctx.pipeline().addFirst("httpCodec",this.context.getHttpCodecBuilder().get());
+                    SslContext sslCtx =  SslContextBuilder
                             .forServer(this.context.getCertificateInfo().getServerPriKey(),
-                                    CertPool.getCert(port, ((InetSocketAddress) ctx.channel().localAddress()).getHostName(), this.context.getCertificateInfo())).build();
+                                    CertPool.getCert(port,hostName, this.context.getCertificateInfo())).build();
+                    ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
 
-                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
-                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-                    ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
-                    ctx.fireChannelRead(msg);
+//                    ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
+//                    ctx.fireChannelRead(msg);
+                     ctx.pipeline().fireChannelRead(msg);
                     return;
                 case 5:
                     System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
@@ -107,6 +133,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                     buf.writeByte(0x05);
                     buf.writeByte(0xff);
                     ctx.writeAndFlush(buf);
+                    resetAfter(ctx,"serverHandle");
                     return;
                 default:
                     if (isHttp((ByteBuf) msg)) {
@@ -114,6 +141,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                         ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
                         ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
                         ctx.fireChannelRead(msg);
+                        resetAfter(ctx,"serverHandle");
                         return;
                     }
                     System.err.println("其他协议");
