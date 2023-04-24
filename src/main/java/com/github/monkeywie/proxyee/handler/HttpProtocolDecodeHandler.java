@@ -36,13 +36,13 @@ import java.util.List;
  * 代理协议解析
  */
 @Slf4j
-public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
+public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
 
     private final ProxyApplicationContext context;
     private ChannelFuture cf;
     private List requestList;
 
-    public ProxyProtocolDecodeHandler(ProxyApplicationContext context) {
+    public HttpProtocolDecodeHandler(ProxyApplicationContext context) {
         this.context = context;
     }
 
@@ -83,44 +83,9 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" + (msg instanceof FullHttpRequest));
-        resetAfter(ctx,"serverHandle");
         FlowContext flowContext = FlowContext.get(ctx,this.context);
         System.err.println(flowContext);
         System.err.println(msg);
-        if (msg instanceof ByteBuf) {
-            byte aByte = ((ByteBuf) msg).getByte(0);
-            switch (aByte) {
-                case 22:
-                    int port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
-                    SslContext sslCtx = SslContextBuilder
-                            .forServer(this.context.getCertificateInfo().getServerPriKey(),
-                                    CertPool.getCert(port, ((InetSocketAddress) ctx.channel().localAddress()).getHostName(), this.context.getCertificateInfo())).build();
-
-                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
-                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-                    ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
-                    ctx.fireChannelRead(msg);
-                    return;
-                case 5:
-                    System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
-                    ByteBuf buf = Unpooled.buffer(2);
-                    buf.writeByte(0x05);
-                    buf.writeByte(0xff);
-                    ctx.writeAndFlush(buf);
-                    return;
-                default:
-                    if (isHttp((ByteBuf) msg)) {
-                        System.err.println("http协议");
-                        ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-                        ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
-                        ctx.fireChannelRead(msg);
-                        return;
-                    }
-                    System.err.println("其他协议");
-            }
-        }else{
-            throw new RuntimeException("不支持的数据格式"+msg);
-        }
         //其它请求
         if (msg instanceof HttpRequest request) {
             DecoderResult result = request.decoderResult();

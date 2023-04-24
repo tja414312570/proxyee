@@ -3,6 +3,7 @@ package com.github.monkeywie.proxyee;
 import com.github.monkeywie.proxyee.config.*;
 import com.github.monkeywie.proxyee.crt.CertUtil;
 import com.github.monkeywie.proxyee.domain.CertificateInfo;
+import com.github.monkeywie.proxyee.domain.FlowContext;
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
 import com.github.monkeywie.proxyee.handler.ChannelHttpMsgForwardAdapter;
 import com.github.monkeywie.proxyee.handler.ChannelTunnelMsgForwardAdapter;
@@ -107,10 +108,11 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
             ch.pipeline().addLast("serverHandle", new ProxyProtocolDecodeHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{
+            FlowContext flowContext = FlowContext.get(ch);
             if (proxyHandler != null) {
                 ch.pipeline().addLast(proxyHandler.get());
             }
-            ProtoUtil.RequestProto requestProto = proxy.getRequestProto();
+            ProtoUtil.RequestProto requestProto = flowContext.getRequestProto();
             if (requestProto.getSsl()) {
                 ch.pipeline().addLast(this.clientSslContext.newHandler(ch.alloc(), requestProto.getHost(), requestProto.getPort()));
             }
@@ -118,13 +120,14 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
                     codec.getMaxInitialLineLength(),
                     codec.getMaxHeaderSize(),
                     codec.getMaxChunkSize()) );
-            ch.pipeline().addLast("proxyClientHandle", new ChannelHttpMsgForwardAdapter(proxy.getClientChannel(), this));
+            ch.pipeline().addLast("proxyClientHandle", new ChannelHttpMsgForwardAdapter( this,flowContext));
         };
         this.tunnelProxyChannelInitializer = (ch,proxy)->{
+            FlowContext flowContext = FlowContext.get(ch);
             if (proxyHandler != null) {
                 ch.pipeline().addLast(proxyHandler.get());
             }
-            ch.pipeline().addLast(new ChannelTunnelMsgForwardAdapter(proxy.getClientChannel(), this));
+            ch.pipeline().addLast(new ChannelTunnelMsgForwardAdapter(this,flowContext));
         };
         if (proxyInterceptInitializer == null) {
             proxyInterceptInitializer = new HttpProxyInterceptInitializer();

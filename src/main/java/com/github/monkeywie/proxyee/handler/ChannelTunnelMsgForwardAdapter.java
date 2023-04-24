@@ -19,7 +19,7 @@ public class ChannelTunnelMsgForwardAdapter extends ChannelInboundHandlerAdapter
     public ChannelTunnelMsgForwardAdapter( ProxyApplicationContext applicationContext,
                                           FlowContext flowContext){
         this.flowContext = flowContext;
-        this.clientChannel = flowContext.getChannelContext().channel();
+        this.clientChannel = flowContext.getClientChannel();
         this.applicationContext = applicationContext;
     }
     @Override
