@@ -12,8 +12,10 @@ import com.github.monkeywie.proxyee.server.auth.HttpProxyAuthenticationProvider;
 import com.github.monkeywie.proxyee.server.auth.model.HttpToken;
 import com.github.monkeywie.proxyee.util.ProtoUtil;
 import com.github.monkeywie.proxyee.util.ProtoUtil.RequestProto;
+import com.google.gson.Gson;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.channel.socket.nio.NioSocketChannel;
@@ -30,6 +32,9 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 /**
@@ -97,21 +102,27 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
             }
         }
     }
+
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" +ctx.channel().id()+"==="+ (msg.getClass()));
+        byte[] bytes = ByteBufUtil.getBytes((ByteBuf) msg);
+        System.err.println(Arrays.toString(bytes));
+        StringBuilder builder = new StringBuilder();
+        for (byte b : bytes) {
+            builder.append(String.format("%02X ", b)); // 将字节转换为两个十六进制字符，并添加到字符串中
+        }
+        System.out.println(builder);
+        System.err.println("--------------------------------"+ctx.channel().id());
         resetAfter(ctx,"serverHandle");
         FlowContext flowContext = FlowContext.get(ctx,this.context);
 
-        if(!flowContext.isNews()){
-            System.err.println();
-        }
 //        System.err.println(flowContext);
 //        System.err.println(msg);
         if (msg instanceof ByteBuf) {
             byte aByte = ((ByteBuf) msg).getByte(0);
             switch (aByte) {
-                case 22:
+                case 22,20:
                     System.err.println("ssl处理");
                     String hostName;
                     int port;
@@ -129,8 +140,13 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
 //                            .sslProvider(SslProvider.OPENSSL)
                             .build();
                     ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
+//                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
 //                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-                    ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
+//                    ctx.fireChannelRead(msg);
+//                    if(aByte == 20){
+//                        ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
+//                    }
+//                    ctx.fireChannelRead(msg);
                     ctx.pipeline().fireChannelRead(msg);
                     return;
                 case 5:
@@ -260,6 +276,8 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        System.err.println("出现错误:--->");
+        cause.printStackTrace();
         if (getChannelFuture() != null) {
             getChannelFuture().channel().close();
         }

@@ -105,7 +105,7 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
 //// 将HttpObjectAggregator添加到ChannelPipeline中
 //            ch.pipeline().addLast("aggregator", aggregator);
 
-            ch.pipeline().addLast("serverHandle", new ProxyProtocolDecodeHandler(this));
+            ch.pipeline().addFirst("serverHandle", new ProxyProtocolDecodeHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{
             FlowContext flowContext = FlowContext.get(ch);
