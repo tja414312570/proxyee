@@ -40,6 +40,9 @@ public class FlowContext {
     private Channel proxyChannel;
     private ProxyApplicationContext applicationContext;
     private final Map<Object,Object> attributes = new HashMap<>();
+    private boolean proxySSl;
+
+    private boolean proxySslCompleted;
 
 
     @SuppressWarnings("unchecked")
@@ -85,4 +88,5 @@ public class FlowContext {
         }
         return flowContext;
     }
+
 }

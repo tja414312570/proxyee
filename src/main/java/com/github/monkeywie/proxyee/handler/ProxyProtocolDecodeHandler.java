@@ -29,8 +29,13 @@ import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.bouncycastle.tls.ClientHello;
+import org.bouncycastle.tls.TlsClientProtocol;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -41,7 +46,7 @@ import java.util.*;
  * 代理协议解析
  */
 @Slf4j
-public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
+public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter implements ChannelOutboundHandler {
 
     private final ProxyApplicationContext context;
     private ChannelFuture cf;
@@ -107,6 +112,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" +ctx.channel().id()+"==="+ (msg.getClass()));
         byte[] bytes = ByteBufUtil.getBytes((ByteBuf) msg);
+
         System.err.println(Arrays.toString(bytes));
         StringBuilder builder = new StringBuilder();
         for (byte b : bytes) {
@@ -117,12 +123,18 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         resetAfter(ctx,"serverHandle");
         FlowContext flowContext = FlowContext.get(ctx,this.context);
 
+        if(flowContext.isProxySSl() && !flowContext.isProxySslCompleted()) {
+            System.err.println("转发给ssl");
+            ctx.fireChannelRead(msg);
+            return;
+        }
 //        System.err.println(flowContext);
 //        System.err.println(msg);
         if (msg instanceof ByteBuf) {
             byte aByte = ((ByteBuf) msg).getByte(0);
             switch (aByte) {
-                case 22,20:
+                case 22,20,23,8,11,15,112:
+                    flowContext.setProxySSl(true);
                     System.err.println("ssl处理");
                     String hostName;
                     int port;
@@ -139,15 +151,20 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
                                     CertPool.getCert(port,hostName, this.context.getCertificateInfo()))
 //                            .sslProvider(SslProvider.OPENSSL)
                             .build();
-                    ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
+                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
 //                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
 //                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
 //                    ctx.fireChannelRead(msg);
 //                    if(aByte == 20){
 //                        ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
 //                    }
-//                    ctx.fireChannelRead(msg);
-                    ctx.pipeline().fireChannelRead(msg);
+                    try{
+                        ctx.fireChannelRead(msg);
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+
+//                    ctx.pipeline().fireChannelRead(msg);
                     return;
                 case 5:
                     System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
@@ -440,5 +457,53 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         HttpProxyInterceptPipeline interceptPipeline = new HttpProxyInterceptPipeline(new HttpProxyIntercept());
         this.context.getProxyInterceptInitializer().init(interceptPipeline);
         return interceptPipeline;
+    }
+
+    @Override
+    public void bind(ChannelHandlerContext ctx, SocketAddress localAddress,
+                     ChannelPromise promise) throws Exception {
+        ctx.bind(localAddress, promise);
+    }
+
+    @Override
+    public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress,
+                        SocketAddress localAddress, ChannelPromise promise) throws Exception {
+        ctx.connect(remoteAddress, localAddress, promise);
+    }
+
+    @Override
+    public void disconnect(ChannelHandlerContext ctx, ChannelPromise promise)
+            throws Exception {
+        ctx.disconnect(promise);
+    }
+
+    @Override
+    public void close(ChannelHandlerContext ctx, ChannelPromise promise)
+            throws Exception {
+        ctx.close(promise);
+    }
+
+    @Override
+    public void deregister(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
+        ctx.deregister(promise);
+    }
+
+    @Override
+    public void read(ChannelHandlerContext ctx) throws Exception {
+        ctx.read();
+    }
+
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        System.err.println("写入数据:"+ctx.channel().id()+"---"+msg);
+        byte[] bytes = ByteBufUtil.getBytes((ByteBuf) msg);
+
+        System.err.println(Arrays.toString(bytes));
+        ctx.write(msg, promise);
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) throws Exception {
+        ctx.flush();
     }
 }
