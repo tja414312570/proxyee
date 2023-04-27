@@ -51,6 +51,7 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter imp
     private final ProxyApplicationContext context;
     private ChannelFuture cf;
     private List requestList;
+    private boolean onlyForward;
 
     public ProxyProtocolDecodeHandler(ProxyApplicationContext context) {
         this.context = context;
@@ -111,83 +112,71 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter imp
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         System.err.println("\n-===========================" +ctx.channel().id()+"==="+ (msg.getClass()));
+        System.err.println(msg);
         byte[] bytes = ByteBufUtil.getBytes((ByteBuf) msg);
-
         System.err.println(Arrays.toString(bytes));
-        StringBuilder builder = new StringBuilder();
-        for (byte b : bytes) {
-            builder.append(String.format("%02X ", b)); // 将字节转换为两个十六进制字符，并添加到字符串中
-        }
-        System.out.println(builder);
         System.err.println("--------------------------------"+ctx.channel().id());
-        resetAfter(ctx,"serverHandle");
         FlowContext flowContext = FlowContext.get(ctx,this.context);
-
-        if(flowContext.isProxySSl() && !flowContext.isProxySslCompleted()) {
-            System.err.println("转发给ssl");
+        if(onlyForward){
+            System.err.println("当前handler仅转发");
             ctx.fireChannelRead(msg);
             return;
         }
-//        System.err.println(flowContext);
-//        System.err.println(msg);
-        if (msg instanceof ByteBuf) {
-            byte aByte = ((ByteBuf) msg).getByte(0);
-            switch (aByte) {
-                case 22,20,23,8,11,15,112:
-                    flowContext.setProxySSl(true);
-                    System.err.println("ssl处理");
-                    String hostName;
-                    int port;
-                    if(flowContext.isReadied()){
-                        port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
-                        hostName =  flowContext.getRequestProto().getHost();
-                        flowContext.getRequestProto().setSsl(true);
-                    }else{
-                        port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
-                        hostName = ((InetSocketAddress) ctx.channel().localAddress()).getHostName();
-                    }
+        byte aByte = ((ByteBuf) msg).getByte(0);
+        switch (aByte) {
+            case 22:
+                String hostName;
+                int port;
+                if(flowContext.isNews()){//https代理 ssl证书
+                    System.err.println("代理服务器ssl");
+                    port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                    hostName = ((InetSocketAddress) ctx.channel().localAddress()).getHostName();
                     SslContext sslCtx =  SslContextBuilder
                             .forServer(this.context.getCertificateInfo().getServerPriKey(),
                                     CertPool.getCert(port,hostName, this.context.getCertificateInfo()))
-//                            .sslProvider(SslProvider.OPENSSL)
                             .build();
-                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
-//                    ctx.pipeline().addLast("sslHandle", sslCtx.newHandler(ctx.alloc()));
-//                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-//                    ctx.fireChannelRead(msg);
-//                    if(aByte == 20){
-//                        ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
-//                    }
-                    try{
-                        ctx.fireChannelRead(msg);
-                    }catch (Exception e){
-                        e.printStackTrace();
-                    }
-
-//                    ctx.pipeline().fireChannelRead(msg);
-                    return;
-                case 5:
-                    System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
-                    ByteBuf buf = Unpooled.buffer(2);
-                    buf.writeByte(0x05);
-                    buf.writeByte(0xff);
-                    ctx.writeAndFlush(buf);
+                    ctx.pipeline().addFirst("proxySslHandle", sslCtx.newHandler(ctx.alloc()));
+                    ctx.pipeline().fireChannelRead(msg);
+                }else{//目标网站ssl代理
+                    System.err.println("目标服服务器ssl");
+                    flowContext.setProxySSl(true);
+                    resetAfter(ctx,ctx.name());
+                    port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                    hostName =  flowContext.getRequestProto().getHost();
+                    flowContext.getRequestProto().setSsl(true);
+                    SslContext sslCtx =  SslContextBuilder
+                            .forServer(this.context.getCertificateInfo().getServerPriKey(),
+                                    CertPool.getCert(port,hostName, this.context.getCertificateInfo()))
+                            .build();
+                    ctx.pipeline().addLast("serverSslHandle", sslCtx.newHandler(ctx.alloc()));
+//                    ctx.pipeline().addLast("httpCodeC", this.context.getHttpCodecBuilder().get());
+                    //固定当前handler
+                    ctx.pipeline().addLast("nextProtocolDecoder",new ProxyProtocolDecodeHandler(this.context));
+                    this.onlyForward = true;
+                    ctx.fireChannelRead(msg);
+                }
+                return;
+            case 5:
+                System.err.println("socket5代理");//接收 05 00 不接受 05 0xff https://blog.csdn.net/kevingzy/article/details/127808550
+                ByteBuf buf = Unpooled.buffer(2);
+                buf.writeByte(0x05);
+                buf.writeByte(0xff);
+                ctx.writeAndFlush(buf);
+//                resetAfter(ctx,"serverHandle");
+                return;
+            default:
+                if (isHttp((ByteBuf) msg)) {
+                    System.err.println("http协议");
                     resetAfter(ctx,"serverHandle");
+                    ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
+                    ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
+                    this.onlyForward = true;
+                    ctx.fireChannelRead(msg);
                     return;
-                default:
-                    if (isHttp((ByteBuf) msg)) {
-                        System.err.println("http协议");
-                        ctx.pipeline().addLast("httpCodec",this.context.getHttpCodecBuilder().get());
-                        ctx.pipeline().addLast("httpDispatcher",new HttpProtocolDecodeHandler(this.context));
-                        ctx.fireChannelRead(msg);
-                        resetAfter(ctx,"serverHandle");
-                        return;
-                    }
-                    System.err.println("其他协议"+aByte);
-            }
-        }else{
-            throw new RuntimeException("不支持的数据格式"+msg);
+                }
+                System.err.println("其他协议"+aByte);
         }
+
 //        //其它请求
 //        if (msg instanceof HttpRequest request) {
 //            DecoderResult result = request.decoderResult();
@@ -497,11 +486,15 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter imp
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
         System.err.println("写入数据:"+ctx.channel().id()+"---"+msg);
         byte[] bytes = ByteBufUtil.getBytes((ByteBuf) msg);
-
         System.err.println(Arrays.toString(bytes));
+        FlowContext flowContext = FlowContext.get(ctx);
+        if(bytes[0] == 20 && flowContext.isProxySSl() && !flowContext.isProxySslCompleted()){
+            System.err.println("设置ssl建立完成");
+            flowContext.setProxySslCompleted(true);
+        }
+
         ctx.write(msg, promise);
     }
-
     @Override
     public void flush(ChannelHandlerContext ctx) throws Exception {
         ctx.flush();

@@ -64,9 +64,9 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        System.err.println("\n-================http===========" + (msg instanceof FullHttpRequest));
+        System.err.println("\n-================http===========" +ctx.channel().id()+"------"+msg.getClass());
         FlowContext flowContext = FlowContext.get(ctx,this.context);
-        System.err.println(flowContext);
+//        System.err.println(flowContext);
         System.err.println(msg);
         //其它请求
         if (msg instanceof HttpRequest request) {
