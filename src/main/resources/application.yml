@@ -10,7 +10,7 @@ spring:
       caKey: classpath*:ca_private.der
     threads:
       work: 3
-      proxy: 4
+      proxy: 0
       boss: 5
     auth:
       username: test

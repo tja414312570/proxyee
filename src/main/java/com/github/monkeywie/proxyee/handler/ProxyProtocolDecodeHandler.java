@@ -137,11 +137,12 @@ public class ProxyProtocolDecodeHandler extends ChannelInboundHandlerAdapter imp
                     ctx.pipeline().addFirst("proxySslHandle", sslCtx.newHandler(ctx.alloc()));
                     ctx.pipeline().fireChannelRead(msg);
                 }else{//目标网站ssl代理
-                    System.err.println("目标服服务器ssl");
+
                     flowContext.setProxySSl(true);
                     resetAfter(ctx,"serverHandle");
                     port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
                     hostName =  flowContext.getRequestProto().getHost();
+                    System.err.println("目标服服务器ssl"+"==>"+port+"===>"+hostName);
                     flowContext.getRequestProto().setSsl(true);
                     SslContext sslCtx =  SslContextBuilder
                             .forServer(this.context.getCertificateInfo().getServerPriKey(),
