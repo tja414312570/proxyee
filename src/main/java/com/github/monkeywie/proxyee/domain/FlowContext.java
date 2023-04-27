@@ -62,13 +62,11 @@ public class FlowContext {
             attr.set(flowContext);
             flowContext.setNews(true);
             flowContext.setApplicationContext(context);
-            System.err.println("创建上下文:" + System.identityHashCode(flowContext));
             flowContext.clientChannel = ctx.channel();
         } else {
             flowContext.setNews(false);
-            System.err.println("得到存在的上下文:" + System.identityHashCode(flowContext));
         }
-                                              return flowContext;
+      return flowContext;
     }
     public void bindProxyChannel(Channel channel) {
         channel.attr(FlowContext.PROXY_EE_FLOW_CONTEXT).set(this);
@@ -84,7 +82,6 @@ public class FlowContext {
             throw new RuntimeException("没有上下文");
         } else {
             flowContext.setNews(false);
-            System.err.println("得到存在的上下文:" + System.identityHashCode(flowContext));
         }
         return flowContext;
     }

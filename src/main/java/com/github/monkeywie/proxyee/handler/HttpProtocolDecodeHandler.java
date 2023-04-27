@@ -61,93 +61,97 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     protected void setRequestList(List requestList) {
         this.requestList = requestList;
     }
+    private static String lock = "LOCK";
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        System.err.println("\n-================http===========" +ctx.channel().id()+"------"+msg.getClass());
-        FlowContext flowContext = FlowContext.get(ctx,this.context);
+        synchronized (lock){
+            System.err.println("\n-================http===========" +ctx.channel().id()+"------"+msg.getClass());
+            FlowContext flowContext = FlowContext.get(ctx,this.context);
 //        System.err.println(flowContext);
-        System.err.println(msg);
-        //其它请求
-        if (msg instanceof HttpRequest request) {
-            DecoderResult result = request.decoderResult();
-            Throwable cause = result.cause();
-            if (cause instanceof DecoderException) {
-                HttpResponseStatus status = null;
-                if (cause instanceof TooLongHttpLineException) {
-                    status = HttpResponseStatus.REQUEST_URI_TOO_LONG;
-                } else if (cause instanceof TooLongHttpHeaderException) {
-                    status = HttpResponseStatus.REQUEST_HEADER_FIELDS_TOO_LARGE;
-                } else if (cause instanceof TooLongHttpContentException) {
-                    status = HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
-                }
-                if (status == null) {
-                    status = HttpResponseStatus.BAD_REQUEST;
-                }
-                HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status);
-                ctx.writeAndFlush(response);
-                //ctx.channel().pipeline().remove("httpCodec");
-                ReferenceCountUtil.release(msg);
-                return;
-            }
-            // The first time a connection is established, the host and port number are taken and the proxy handshake is processed.
-            if (!flowContext.isConnected()) {
-                flowContext.setRequestProto(ProtoUtil.getRequestProto(request));
-                if (flowContext.getRequestProto() == null) { // bad request
-                    logWrite(ctx.channel(), HttpResponseStatus.BAD_REQUEST);
-                    ctx.channel().close();
+            System.err.println(msg);
+            //其它请求
+            if (msg instanceof HttpRequest request) {
+                DecoderResult result = request.decoderResult();
+                Throwable cause = result.cause();
+                if (cause instanceof DecoderException) {
+                    HttpResponseStatus status = null;
+                    if (cause instanceof TooLongHttpLineException) {
+                        status = HttpResponseStatus.REQUEST_URI_TOO_LONG;
+                    } else if (cause instanceof TooLongHttpHeaderException) {
+                        status = HttpResponseStatus.REQUEST_HEADER_FIELDS_TOO_LARGE;
+                    } else if (cause instanceof TooLongHttpContentException) {
+                        status = HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE;
+                    }
+                    if (status == null) {
+                        status = HttpResponseStatus.BAD_REQUEST;
+                    }
+                    HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status);
+                    ctx.writeAndFlush(response);
+                    //ctx.channel().pipeline().remove("httpCodec");
+                    ReferenceCountUtil.release(msg);
                     return;
                 }
-                //请求是否放行
-                HttpProxyAcceptHandler httpProxyAcceptHandler = this.context.getHttpProxyAcceptHandler();
-                if (httpProxyAcceptHandler != null
-                        && !httpProxyAcceptHandler.onAccept(request, ctx.channel())) {
-                    logWrite(ctx.channel(), HttpResponseStatus.NOT_ACCEPTABLE);
-                    ctx.channel().close();
-                    return;
-                }
-                //非握请求
-                if (!HttpMethod.CONNECT.equals(request.method())) {// 建立代理握手
-                    logWrite(ctx.channel(), HttpResponseStatus.METHOD_NOT_ALLOWED);
-                    ctx.channel().close();
-                    return;
-                }
-                if (!authenticate(ctx, request,flowContext)) {
-                    logWrite(ctx.channel(), HttpResponseStatus.FORBIDDEN);
-                    ctx.channel().close();
-                    return;
-                }
-                HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpsResponse.SUCCESS);
-                ctx.writeAndFlush(response);
-                ReferenceCountUtil.release(msg);
-                flowContext.setConnected(true);
-            }else{
-                flowContext.setReadied(true);
-                flowContext.setInterceptPipeline(buildPipeline(flowContext));
-                flowContext.getInterceptPipeline().setRequestProto(flowContext.getRequestProto().copy());
-                // fix issue #27
-                if (request.uri().indexOf("/") != 0) {
-                    URL url = new URL(request.uri());
-                    request.setUri(url.getFile());
-                }
-                flowContext.getInterceptPipeline().beforeRequest(ctx.channel(), request);
-                ReferenceCountUtil.release(msg);
-            }
-        } else if (msg instanceof HttpContent) {
-            if (flowContext.isConnected()) {
-                if(flowContext.isReadied()){
-                    flowContext.getInterceptPipeline().beforeRequest(ctx.channel(), (HttpContent) msg);
+                // The first time a connection is established, the host and port number are taken and the proxy handshake is processed.
+                if (!flowContext.isConnected()) {
+                    flowContext.setRequestProto(ProtoUtil.getRequestProto(request));
+                    if (flowContext.getRequestProto() == null) { // bad request
+                        logWrite(ctx.channel(), HttpResponseStatus.BAD_REQUEST);
+                        ctx.channel().close();
+                        return;
+                    }
+                    //请求是否放行
+                    HttpProxyAcceptHandler httpProxyAcceptHandler = this.context.getHttpProxyAcceptHandler();
+                    if (httpProxyAcceptHandler != null
+                            && !httpProxyAcceptHandler.onAccept(request, ctx.channel())) {
+                        logWrite(ctx.channel(), HttpResponseStatus.NOT_ACCEPTABLE);
+                        ctx.channel().close();
+                        return;
+                    }
+                    //非握请求
+                    if (!HttpMethod.CONNECT.equals(request.method())) {// 建立代理握手
+                        logWrite(ctx.channel(), HttpResponseStatus.METHOD_NOT_ALLOWED);
+                        ctx.channel().close();
+                        return;
+                    }
+                    if (!authenticate(ctx, request,flowContext)) {
+                        logWrite(ctx.channel(), HttpResponseStatus.FORBIDDEN);
+                        ctx.channel().close();
+                        return;
+                    }
+                    HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpsResponse.SUCCESS);
+                    ctx.writeAndFlush(response);
+                    ReferenceCountUtil.release(msg);
+                    flowContext.setConnected(true);
                 }else{
+                    flowContext.setReadied(true);
+                    flowContext.setInterceptPipeline(buildPipeline(flowContext));
+                    flowContext.getInterceptPipeline().setRequestProto(flowContext.getRequestProto().copy());
+                    // fix issue #27
+                    if (request.uri().indexOf("/") != 0) {
+                        URL url = new URL(request.uri());
+                        request.setUri(url.getFile());
+                    }
+                    flowContext.getInterceptPipeline().beforeRequest(ctx.channel(), request);
+                    ReferenceCountUtil.release(msg);
+                }
+            } else if (msg instanceof HttpContent) {
+                if (flowContext.isConnected()) {
+                    if(flowContext.isReadied()){
+                        flowContext.getInterceptPipeline().beforeRequest(ctx.channel(), (HttpContent) msg);
+                    }else{
+                        ReferenceCountUtil.release(msg);
+                    }
+                } else {
+                    logWrite(ctx.channel(), HttpResponseStatus.UNAUTHORIZED);
+                    ctx.channel().close();
                     ReferenceCountUtil.release(msg);
                 }
             } else {
-                logWrite(ctx.channel(), HttpResponseStatus.UNAUTHORIZED);
-                ctx.channel().close();
-                ReferenceCountUtil.release(msg);
+                handleProxyData(ctx.channel(), msg, flowContext);
             }
-        } else {
-            handleProxyData(ctx.channel(), msg, flowContext);
         }
+
     }
 
     private boolean isHttp(ByteBuf byteBuf) {
@@ -319,7 +323,7 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
         channelFuture.addListener(future -> {
             Throwable cause = future.cause();
             if (cause != null) {
-                log.warn("一个错误出现在写入数据{}", cause.getMessage(), cause);
+                log.warn("一个错误出现在写入数据{},{}",channel.id(), cause.getMessage(), cause);
                 log.warn("错误的数据{}", msg);
             }
         });
