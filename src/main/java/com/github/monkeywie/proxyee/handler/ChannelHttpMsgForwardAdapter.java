@@ -25,7 +25,7 @@ public class ChannelHttpMsgForwardAdapter extends ChannelTunnelMsgForwardAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         //客户端channel已关闭则不转发了
-        System.err.println("响应转发:"+ctx.channel().id()+"===>"+msg);
+        System.err.println("响应转发:"+ctx.channel().id()+"===>"+clientChannel.id()+"--->"+msg);
         if (!clientChannel.isOpen()) {
             ReferenceCountUtil.release(msg);
             return;

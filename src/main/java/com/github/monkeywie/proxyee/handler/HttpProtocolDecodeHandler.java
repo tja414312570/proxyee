@@ -61,11 +61,9 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
     protected void setRequestList(List requestList) {
         this.requestList = requestList;
     }
-    private static String lock = "LOCK";
 
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
-        synchronized (lock){
             System.err.println("\n-================http===========" +ctx.channel().id()+"------"+msg.getClass());
             FlowContext flowContext = FlowContext.get(ctx,this.context);
 //        System.err.println(flowContext);
@@ -150,7 +148,6 @@ public class HttpProtocolDecodeHandler extends ChannelInboundHandlerAdapter {
             } else {
                 handleProxyData(ctx.channel(), msg, flowContext);
             }
-        }
 
     }
 
