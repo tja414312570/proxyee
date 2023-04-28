@@ -98,13 +98,6 @@ public class SpringProxyApplicationContext extends ProxyApplicationContext imple
                 codec.getMaxChunkSize());
         //服务渠道初始化工具
         this.serverChannelInitializer = ch -> {
-//            ch.pipeline().addLast("httpCodec", this.httpCodecBuilder.get());
-//            // 创建HttpObjectAggregator对象
-//            HttpObjectAggregator aggregator = new HttpObjectAggregator(65536);
-//
-//// 将HttpObjectAggregator添加到ChannelPipeline中
-//            ch.pipeline().addLast("aggregator", aggregator);
-
             ch.pipeline().addFirst("serverHandle", new ProxyProtocolDecodeHandler(this));
         };
         this.httpProxyChannelInitializer = (ch,proxy)->{
